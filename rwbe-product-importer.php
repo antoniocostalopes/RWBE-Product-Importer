@@ -262,6 +262,21 @@ function rwbe_register_product_brand_taxonomy() {
 }
 add_action('init', 'rwbe_register_product_brand_taxonomy', 5);
 
+/**
+ * Load the plugin translations from /languages.
+ *
+ * The plugin is not hosted on wordpress.org, so WordPress does not load the
+ * translations automatically — the text domain has to be registered here.
+ */
+function rwbe_load_textdomain() {
+    load_plugin_textdomain(
+        'rwbe-product-importer',
+        false,
+        dirname(plugin_basename(__FILE__)) . '/languages'
+    );
+}
+add_action('init', 'rwbe_load_textdomain');
+
 // Initialize the plugin
 function rwbe_product_importer_init() {
     if (rwbe_check_woocommerce_active()) {

@@ -13,7 +13,7 @@ if (!defined('WPINC')) {
 }
 
 // Include the main plugin file to access all required classes
-require_once __DIR__ . '/rwbe-product-importer.php';
+require_once dirname(__DIR__) . '/rwbe-product-importer.php';
 
 /**
  * Class to handle importing products from a .txt file

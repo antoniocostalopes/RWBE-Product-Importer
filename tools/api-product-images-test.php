@@ -7,12 +7,12 @@
  */
 
 // Carregar WordPress
-require_once('../../../../wp-load.php');
+require_once dirname(__DIR__, 4) . '/wp-load.php';
 
 // Configuração da API
 $api_endpoint = 'https://portal.racewinningbrandseurope.com/apiv2/products/';
 // The API token is never hard-coded in this repository. It is read from, in order:
-//   1. the RWBE_API_TOKEN environment variable, e.g. RWBE_API_TOKEN=xxx php api-product-images-test.php
+//   1. the RWBE_API_TOKEN environment variable, e.g. RWBE_API_TOKEN=xxx php tools/api-product-images-test.php
 //   2. the token configured in the plugin settings (when WordPress is loaded)
 $api_token = getenv('RWBE_API_TOKEN');
 if (!$api_token && function_exists('rwbe_get_api_token')) {

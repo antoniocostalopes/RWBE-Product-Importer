@@ -34,8 +34,13 @@ Detalhe de utilização e configuração: [README.md](README.md).
 ### Adicionado
 - `rwbe_has_api_token()` para verificar se existe credencial configurada.
 - Aviso no backoffice, para administradores, enquanto não houver token configurado.
+- **Traduções ativadas** — `load_plugin_textdomain()` passou a ser chamado no `init` e a pasta `languages/` inclui o modelo `rwbe-product-importer.pot` com as 223 strings do plugin. O cabeçalho declarava `Domain Path: /languages` sem que a pasta existisse nem o domínio fosse carregado, pelo que nenhuma tradução podia ser aplicada.
+- `LICENSE` (GPL v2) e `.gitignore`; cabeçalho do plugin com `License` e `License URI`.
 
 ### Alterado
+- **Autoria no cabeçalho** — `Author: António Lopes`, `Author URI: https://www.antoniolopes.io`; `Plugin URI` removido e os antigos valores `example.com` deixaram de existir.
+- `Requires PHP` passou de 7.2 para **7.4** (testado até 8.3) e `WC tested up to` de 7.0 para **11.0**.
+- Os scripts de diagnóstico saíram da raiz do plugin para **`tools/`**, com um `README.md` próprio e caminhos de bootstrap absolutos (`dirname(__DIR__, 4)`), em vez de relativos ao diretório de trabalho. A pasta pode ser apagada em produção.
 - `rwbe_get_api_token()` passou a preferir a constante `RWBE_API_AUTH_TOKEN` e a devolver string vazia quando nada está configurado (em vez de cair num token por defeito).
 - Guardas de "sem token" em todos os pontos de entrada da API — `api_get()` devolve `WP_Error`, `import_products()` aborta com mensagem, `fetch_products_from_api()` e `backfill_fitment_batch()` não arrancam, e o testador de ligação explica o que falta. Antes, sem token, eram enviados pedidos com um cabeçalho `Bearer` vazio.
 

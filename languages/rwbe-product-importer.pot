@@ -1,0 +1,941 @@
+# Copyright (C) 2026 António Lopes
+# This file is distributed under the GPL v2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: RWBE Product Importer 1.2.3\n"
+"Report-Msgid-Bugs-To: https://www.antoniolopes.io\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Domain: rwbe-product-importer\n"
+"Language: pt_PT\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: rwbe-product-importer.php:152
+msgid "RWBE Product Importer requires WooCommerce to be installed and active."
+msgstr ""
+
+#: rwbe-product-importer.php:161
+msgid "RWBE Product Importer requires WooCommerce classes to be available. Please check if WooCommerce is properly installed."
+msgstr ""
+
+#: rwbe-product-importer.php:211
+msgid "Every 5 minutes"
+msgstr ""
+
+#: rwbe-product-importer.php:237
+#: rwbe-product-importer.php:247
+msgid "Brands"
+msgstr ""
+
+#: rwbe-product-importer.php:238
+#: includes/class-rwbe-api-tester.php:125
+msgid "Brand"
+msgstr ""
+
+#: rwbe-product-importer.php:239
+msgid "Search Brands"
+msgstr ""
+
+#: rwbe-product-importer.php:240
+msgid "All Brands"
+msgstr ""
+
+#: rwbe-product-importer.php:241
+msgid "Parent Brand"
+msgstr ""
+
+#: rwbe-product-importer.php:242
+msgid "Parent Brand:"
+msgstr ""
+
+#: rwbe-product-importer.php:243
+msgid "Edit Brand"
+msgstr ""
+
+#: rwbe-product-importer.php:244
+msgid "Update Brand"
+msgstr ""
+
+#: rwbe-product-importer.php:245
+msgid "Add New Brand"
+msgstr ""
+
+#: rwbe-product-importer.php:246
+msgid "New Brand Name"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:34
+msgid "Nenhum API Token configurado. Introduza o token no campo \"API Token\" das Configurações (ou defina a constante RWBE_API_AUTH_TOKEN no wp-config.php)."
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:114
+msgid "API Connection Successful!"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:119
+msgid "Sample Product Data:"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:123
+msgid "Item Code"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:124
+msgid "Title"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:126
+msgid "Price"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:127
+#: includes/class-rwbe-product-importer-admin.php:684
+msgid "Stock"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:128
+msgid "Category"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:151
+msgid "First Product Details:"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:156
+msgid "API Connection Failed"
+msgstr ""
+
+#: includes/class-rwbe-api-tester.php:159
+msgid "Error:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:47
+#: includes/class-rwbe-product-importer-admin.php:48
+msgid "RWBE Importer"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:102
+msgid "Apagar as imagens placeholder duplicadas? Mantém uma cópia partilhada e reaponta todos os produtos para ela. Esta operação apaga ficheiros do disco e não é reversível."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:103
+msgid "Retomar a limpeza a partir do ponto onde parou? Esta operação apaga ficheiros do disco e não é reversível."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:104
+msgid "Parar a limpeza? O progresso é guardado e pode retomar depois."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:105
+msgid "Limpeza parada. O progresso foi guardado."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:107
+msgid "A limpar duplicados…"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:108
+msgid "Limpeza concluída."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:109
+msgid "Erro durante a limpeza. Consulte os logs."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:110
+msgid "Importing products, please wait..."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:111
+msgid "Import complete!"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:112
+msgid "Error during import. Please check the logs."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:113
+msgid "Testing API connection, please wait..."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:114
+msgid "API test complete!"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:115
+msgid "Error testing API connection."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:116
+msgid "Loading debug log..."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:117
+msgid "Clearing debug log..."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:118
+msgid "Debug log cleared!"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:120
+#: includes/class-rwbe-product-importer-admin.php:572
+msgid "Importação em curso…"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:121
+#: includes/class-rwbe-product-importer-admin.php:572
+msgid "Iniciar Importação Completa"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:123
+msgid "Iniciar uma importação completa? Esta operação percorre todo o catálogo do fornecedor e pode demorar bastante."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:148
+msgid "RWBE Product Importer: nenhum API Token configurado. Introduza o seu token em %s antes de importar."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:149
+msgid "Configurações do plugin"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:188
+#: includes/class-rwbe-product-importer-admin.php:777
+#: includes/class-rwbe-product-importer-admin.php:828
+#: includes/class-rwbe-product-importer-admin.php:942
+#: includes/class-rwbe-product-importer-admin.php:978
+#: includes/class-rwbe-product-importer-admin.php:1015
+msgid "You do not have permission to perform this action."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:235
+#: includes/class-rwbe-product-importer-admin.php:239
+msgid "Nunca"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:288
+msgid "Importação Automática"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:290
+#: includes/class-rwbe-product-importer-admin.php:300
+#: includes/class-rwbe-product-importer-admin.php:550
+msgid "Não agendado"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:292
+msgid "2x por dia"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:298
+msgid "Verificar Importações Interrompidas"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:302
+msgid "A cada 5 minutos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:316
+msgid "Inativo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:341
+msgid "Em execução"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:344
+msgid "Concluída"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:347
+msgid "Interrompida"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:351
+msgid "Interrompida há %s (%d produtos processados)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:385
+msgid "RWBE Product Importer"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:391
+msgid "Configurações"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:397
+msgid "API Token"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:403
+msgid "Testar ligação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:407
+msgid "Token de autenticação da API RWBE. Tem de ser introduzido manualmente — o plugin não inclui nenhum token por defeito. O botão testa a ligação com o token introduzido (não precisa de guardar primeiro)."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:409
+msgid "A constante RWBE_API_AUTH_TOKEN está definida no wp-config.php e tem prioridade sobre este campo."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:414
+#: includes/class-rwbe-product-importer-admin.php:661
+msgid "Debug Log"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:418
+msgid "Ativar registo de depuração (recomendado desligar em produção)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:420
+msgid "O log é rotativo (máx. ~5 MB) e guardado em uploads/rwbe-logs/."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:424
+msgid "Guardar Configurações"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:434
+msgid "Estado da Importação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:447
+msgid "Última atividade:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:451
+msgid "criados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:452
+msgid "atualizados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:453
+msgid "erros"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:462
+msgid "Estatísticas de Produtos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:467
+msgid "Produtos RWBE"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:471
+msgid "Total WooCommerce"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:475
+msgid "Em Stock"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:479
+msgid "Sem Stock"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:483
+msgid "Última importação manual:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:484
+msgid "Última importação cron:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:495
+msgid "Taxonomias / Atributos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:500
+#: includes/class-rwbe-product-importer-search.php:602
+msgid "Atributo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:501
+msgid "Slug"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:502
+#: includes/class-rwbe-product-importer-admin.php:537
+#: includes/class-rwbe-product-importer-live-log.php:107
+msgid "Estado"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:503
+msgid "Termos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:513
+#: includes/class-rwbe-product-importer-admin.php:746
+msgid "Ativo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:515
+msgid "Não existe"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:529
+msgid "Tarefas Agendadas (Cron)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:534
+msgid "Tarefa"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:535
+msgid "Frequência"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:536
+msgid "Próxima Execução"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:548
+msgid "Agendado"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:564
+msgid "Importar Produtos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:566
+msgid "Inicie uma importação manual para criar novos produtos ou atualizar os existentes com base no SKU (itemCode)."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:567
+msgid "A importação manual atualiza todas as informações do produto, incluindo taxonomias. A importação via cron apenas atualiza stock e preço."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:578
+#: includes/class-rwbe-product-importer-live-log.php:81
+msgid "Retomar Importação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:593
+msgid "Resultados da Importação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:602
+msgid "Limpar Imagens Placeholder Duplicadas"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:604
+msgid "Quando um produto não tem foto, o fornecedor devolve sempre a mesma imagem \"Race Winning Brands\". Importações antigas criaram uma cópia física por produto (dezenas de milhares de ficheiros)."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:605
+msgid "Esta ação mantém uma única cópia partilhada, reaponta todos os produtos para ela e apaga as restantes cópias (ficheiros + registos). Corre em lotes; não feche a página enquanto decorre. Importações futuras já não duplicam."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:619
+msgid "Limpeza em curso no servidor. Pode fechar esta página ou mudar de janela — o processo continua e o progresso reaparece quando voltar."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:625
+msgid "Passagem anterior parou no anexo #%d. \"Continuar\" retoma a partir daí; \"Recomeçar\" volta a varrer tudo desde o início."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:635
+msgid "Continuar Limpeza"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:641
+msgid "Recomeçar do Início"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:642
+msgid "Apagar Placeholders Duplicados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:646
+msgid "Parar Limpeza"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:669
+msgid "Produtos Recentemente Processados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:679
+msgid "Hora"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:680
+msgid "SKU"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:681
+msgid "Título"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:682
+msgid "Ação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:683
+msgid "Status"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:685
+msgid "Fonte"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:713
+msgid "Ainda não existem produtos processados para mostrar. Inicie uma importação para ver os resultados aqui."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:721
+msgid "Informações do Sistema"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:725
+msgid "Versão do Plugin:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:729
+msgid "WooCommerce:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:730
+msgid "Não instalado"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:733
+msgid "PHP:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:737
+msgid "Memory Limit:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:741
+msgid "Max Execution Time:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:745
+msgid "WordPress Cron:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:746
+msgid "Desativado"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:797
+msgid "Importação em curso. Tente novamente quando terminar."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:895
+msgid "Importação iniciada em segundo plano. Você pode acompanhar o progresso na página de Importação em Tempo Real."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:911
+msgid "Total products processed:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:912
+msgid "New products created:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:913
+msgid "Existing products updated:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:914
+msgid "Products skipped:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:915
+msgid "Errors:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:920
+msgid "Error Details:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:993
+msgid "Error reading debug log file. Check file permissions."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:995
+msgid "The debug log is empty."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:998
+msgid "No debug log file found. It will be created when the first log entry is added."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:1027
+msgid "Debug log cleared successfully."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-admin.php:1031
+msgid "Error clearing debug log. Check file permissions."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:32
+#: includes/class-rwbe-product-importer-live-log.php:33
+#: includes/class-rwbe-product-importer-live-log.php:95
+msgid "Importação em Tempo Real"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:73
+msgid "Carregando logs..."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:74
+msgid "Nenhuma importação em andamento."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:75
+#: includes/class-rwbe-product-importer-live-log.php:171
+msgid "Última atualização:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:76
+msgid "Status:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:77
+msgid "Progresso:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:78
+msgid "Produtos Recentes:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:79
+msgid "Iniciar Importação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:80
+msgid "Parar Importação"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:82
+msgid "Tem certeza que deseja parar a importação? Você poderá retomá-la mais tarde."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:97
+msgid "Iniciar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:98
+msgid "Parar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:99
+msgid "Retomar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:110
+#: includes/class-rwbe-product-importer-live-log.php:166
+#: includes/class-rwbe-product-importer-search.php:79
+#: includes/class-rwbe-vehicle-filter-widget.php:248
+msgid "A carregar…"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:114
+msgid "Tempo decorrido"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:118
+msgid "Ritmo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:122
+msgid "Progresso"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:135
+msgid "Total"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:139
+msgid "Criados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:143
+msgid "Atualizados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:147
+msgid "Ignorados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:151
+msgid "Erros"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:159
+msgid "Aguardando…"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-live-log.php:164
+msgid "Atividade por produto"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:77
+#: includes/class-rwbe-vehicle-filter-widget.php:247
+msgid "Selecione o modelo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:78
+msgid "Selecione o ano"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:80
+#: includes/class-rwbe-vehicle-filter-widget.php:249
+msgid "Sem modelos disponíveis"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:81
+msgid "Sem anos disponíveis"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:104
+#: includes/class-rwbe-vehicle-filter-widget.php:135
+#: includes/class-rwbe-vehicle-filter-widget.php:417
+msgid "Marca"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:105
+#: includes/class-rwbe-vehicle-filter-widget.php:136
+#: includes/class-rwbe-vehicle-filter-widget.php:418
+msgid "Modelo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:106
+msgid "Ano"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:107
+msgid "Pesquisar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:123
+#: includes/class-rwbe-vehicle-filter-widget.php:142
+msgid "A pesquisa por veículo ainda não está disponível."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:128
+#: includes/class-rwbe-vehicle-filter-widget.php:147
+msgid "Ainda não existem marcas de veículo importadas."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:142
+msgid "Pesquisa de peças por veículo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:524
+#: includes/class-rwbe-product-importer-search.php:525
+msgid "Barra de Pesquisa"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:585
+msgid "Barra de Pesquisa por Veículo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:590
+msgid "Shortcode"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:592
+msgid "Copie este shortcode e cole-o na homepage (página, bloco de shortcode ou widget) para mostrar a barra de pesquisa Marca → Modelo:"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:596
+msgid "Ao submeter, o cliente é levado para a loja já filtrada pela marca e modelo de veículo escolhidos."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:598
+msgid "Atributos opcionais"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:603
+msgid "Descrição"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:604
+msgid "Exemplo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:608
+msgid "Texto do campo da marca"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:609
+msgid "Texto do campo do modelo"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:610
+msgid "Texto do campo do ano"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:611
+msgid "Mostrar o 3º nível (Ano). Use \"no\" para esconder"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:612
+msgid "Texto do botão"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:613
+msgid "URL de resultados (por defeito: página da Loja)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:617
+msgid "Estado dos dados"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:623
+msgid "Marcas de veículo: %1$d · Modelos: %2$d"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:632
+msgid "Ainda não há marcas/modelos suficientes. Execute uma importação completa para que a barra de pesquisa tenha dados."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:641
+msgid "Combinações de veículo (marca + modelo + anos)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:644
+msgid "Marca, modelo e ano são atributos independentes do produto, por isso não guardam qual modelo pertence a qual marca. A tabela de combinações guarda cada aplicação da API intacta, o que corrige os modelos listados na marca errada e os resultados de combinações que não existem."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:652
+msgid "Produtos com combinações: %1$s de %2$s · %3$s linhas"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:663
+msgid "Os menus e o filtro da loja estão a usar as combinações reais."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:668
+msgid "Ainda sem dados suficientes — os menus continuam a usar os atributos, como antes. Uma importação completa preenche a tabela; o preenchimento abaixo faz o mesmo sem reimportar os produtos."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:678
+msgid "Preenchimento a decorrer: %1$s processados, %2$s em falta. Corre um lote por minuto em segundo plano."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:684
+msgid "Parar preenchimento"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:686
+msgid "O preenchimento consulta a API produto a produto (o mesmo pedido que a importação já faz) e escreve apenas as combinações — não altera os produtos."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:687
+msgid "Preencher a partir da API"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:695
+msgid "Mapa de veículos (desempenho)"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:698
+msgid "As listas de modelos e anos são pré-calculadas em dois ficheiros JSON servidos diretamente pelo servidor web. Assim os menus não precisam de chamar o WordPress a cada escolha. É reconstruído automaticamente no fim de cada importação."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:704
+msgid "Mapa reconstruído com sucesso."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:709
+msgid "Não foi possível reconstruir o mapa. Verifique as permissões da pasta uploads e o registo de depuração."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:719
+msgid "Mapa gerado em %1$s (origem: %2$s)."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:722
+msgid "combinações reais"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:723
+msgid "atributos"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:726
+msgid "Mapa ainda não gerado — os menus estão a usar o método antigo (AJAX), mais lento mas funcional."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:732
+msgid "Reconstruir mapa agora"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:741
+msgid "Aparência"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:747
+msgid "Cor do botão Pesquisar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:750
+msgid "Cor de fundo do botão de pesquisa na barra do site."
+msgstr ""
+
+#: includes/class-rwbe-product-importer-search.php:754
+msgid "Guardar"
+msgstr ""
+
+#: includes/class-rwbe-product-importer.php:249
+msgid "A imagem placeholder partilhada (anexo #%d) não existe ou já não corresponde ao placeholder. Limpeza cancelada para não reapontar produtos para a imagem errada."
+msgstr ""
+
+#: includes/class-rwbe-product-importer.php:825
+msgid "Nenhum API Token configurado. Introduza o token nas Configurações do plugin."
+msgstr ""
+
+#: includes/class-rwbe-product-importer.php:1062
+msgid "Nenhum API Token configurado. Introduza o token nas Configurações do plugin antes de importar."
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:74
+#: includes/class-rwbe-vehicle-filter-widget.php:376
+msgid "RWBE — Filtro por Veículo (Marca + Modelo)"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:75
+msgid "Filtra a loja por marca e modelo de veículo."
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:158
+msgid "Filtro de peças por veículo"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:179
+msgid "Limpar filtro"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:378
+msgid "Filtra a loja por marca e modelo de veículo. Ideal para a barra lateral da página /loja."
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:391
+#: includes/class-rwbe-vehicle-filter-widget.php:416
+msgid "Pesquisar por veículo"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:422
+msgid "Título:"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:426
+msgid "Rótulo da marca:"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:430
+msgid "Rótulo do modelo:"
+msgstr ""
+
+#: includes/class-rwbe-vehicle-filter-widget.php:434
+msgid "URL de resultados (vazio = página da Loja):"
+msgstr ""

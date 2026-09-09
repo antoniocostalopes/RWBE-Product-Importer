@@ -121,7 +121,7 @@ define('RWBE_API_AUTH_TOKEN', 'o-seu-token');
 Os scripts de diagnóstico na raiz do plugin leem o token da variável de ambiente `RWBE_API_TOKEN`:
 
 ```bash
-RWBE_API_TOKEN=o-seu-token php api-test.php
+RWBE_API_TOKEN=o-seu-token php tools/api-test.php
 ```
 
 ### IVA (importante)
@@ -313,9 +313,12 @@ rwbe-product-importer/
 │   ├── class-rwbe-debug-logger.php        # Log rotativo
 │   └── class-rwbe-generic-attribute-helper.php
 ├── assets/                                # CSS e JS do admin e da loja
-├── *-test.php                             # Scripts de diagnóstico da API (CLI)
+├── languages/                             # rwbe-product-importer.pot (modelo de tradução)
+├── tools/                                 # Scripts de diagnóstico da API (CLI) — ver tools/README.md
 └── CHANGELOG.md
 ```
+
+A pasta `tools/` não é usada em execução: pode ser removida numa instalação de produção.
 
 ---
 
