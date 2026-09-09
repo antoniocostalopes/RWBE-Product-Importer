@@ -300,22 +300,28 @@ Criados e preenchidos **automaticamente** pelo plugin:
 
 ```
 rwbe-product-importer/
-├── rwbe-product-importer.php              # Bootstrap: constantes, token, hooks, ativação
+├── rwbe-product-importer.php                       # Bootstrap: constantes, token, i18n, hooks, ativação
 ├── includes/
-│   ├── class-rwbe-product-importer.php    # Motor de importação (produtos, imagens, fitment)
-│   ├── class-rwbe-product-importer-admin.php  # Backoffice e endpoints AJAX
-│   ├── class-rwbe-product-importer-live-log.php  # Painel de importação em tempo real
-│   ├── class-rwbe-product-importer-search.php    # Shortcode [rwbe_ymm_search] e filtro da loja
-│   ├── class-rwbe-vehicle-filter-widget.php      # Widget de filtro de veículo
-│   ├── class-rwbe-vehicle-map.php         # Mapas estáticos JSON dos menus
-│   ├── class-rwbe-fitment.php             # Tabela wp_rwbe_fitment (combinações reais)
-│   ├── class-rwbe-api-tester.php          # Teste de ligação à API
-│   ├── class-rwbe-debug-logger.php        # Log rotativo
-│   └── class-rwbe-generic-attribute-helper.php
-├── assets/                                # CSS e JS do admin e da loja
-├── languages/                             # rwbe-product-importer.pot (modelo de tradução)
-├── tools/                                 # Scripts de diagnóstico da API (CLI) — ver tools/README.md
-└── CHANGELOG.md
+│   ├── class-rwbe-product-importer.php             # Motor de importação (produtos, imagens, fitment)
+│   ├── class-rwbe-product-importer-admin.php       # Backoffice e endpoints AJAX
+│   ├── class-rwbe-product-importer-live-log.php    # Painel de importação em tempo real
+│   ├── class-rwbe-product-importer-search.php      # Shortcode [rwbe_ymm_search] e filtro da loja
+│   ├── class-rwbe-vehicle-filter-widget.php        # Widget de filtro de veículo
+│   ├── class-rwbe-vehicle-map.php                  # Mapas estáticos JSON dos menus
+│   ├── class-rwbe-fitment.php                      # Tabela wp_rwbe_fitment (combinações reais)
+│   ├── class-rwbe-api-tester.php                   # Teste de ligação à API
+│   ├── class-rwbe-debug-logger.php                 # Log rotativo em uploads/rwbe-logs/
+│   └── class-rwbe-generic-attribute-helper.php     # Criação de atributos pa_* e limpeza de cache
+├── assets/
+│   ├── css/                                        # admin, live-log, search, vehicle-filter
+│   └── js/                                         # admin, live-log, search, vehicle-filter, vehicle-filter-block
+├── languages/
+│   └── rwbe-product-importer.pot                   # Modelo de tradução (223 strings)
+├── tools/                                          # Scripts de diagnóstico da API (CLI) — ver tools/README.md
+├── CHANGELOG.md
+├── LICENSE                                         # GPL v2
+├── README.md
+└── .gitignore
 ```
 
 A pasta `tools/` não é usada em execução: pode ser removida numa instalação de produção.
