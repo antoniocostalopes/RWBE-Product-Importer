@@ -1,0 +1,161 @@
+/**
+ * RWBE vehicle search bar (Make → Model)
+ * Self-contained, theme-friendly. Tokens scoped to the component.
+ */
+.rwbe-ymm-search {
+    --rwbe-ym-bg: #ffffff;
+    --rwbe-ym-border: #d9dce1;
+    --rwbe-ym-field-bg: #f7f8fa;
+    --rwbe-ym-text: #1f2329;
+    --rwbe-ym-label: #5b6470;
+    --rwbe-ym-accent: #d6201f;
+    --rwbe-ym-accent-d: #b51a19;
+    --rwbe-ym-radius: 10px;
+    --rwbe-ym-field-h: 50px;
+
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 18px;
+    background: var(--rwbe-ym-bg);
+    border: 1px solid var(--rwbe-ym-border);
+    border-radius: var(--rwbe-ym-radius);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+    box-sizing: border-box;
+}
+
+.rwbe-ymm-search *,
+.rwbe-ymm-search *::before,
+.rwbe-ymm-search *::after {
+    box-sizing: border-box;
+}
+
+.rwbe-ymm-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 200px;
+    min-width: 160px;
+}
+
+.rwbe-ymm-actions {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+}
+
+.rwbe-ymm-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 7px;
+    color: var(--rwbe-ym-label);
+}
+
+.rwbe-ymm-search select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: var(--rwbe-ym-field-h);
+    margin: 0;
+    padding: 0 40px 0 14px;
+    border: 1px solid var(--rwbe-ym-border);
+    border-radius: var(--rwbe-ym-radius);
+    background-color: var(--rwbe-ym-field-bg);
+    /* caret */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235b6470' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    color: var(--rwbe-ym-text);
+    font-size: 15px;
+    line-height: var(--rwbe-ym-field-h);
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rwbe-ymm-search .rwbe-ymm-field select:hover,
+.rwbe-ymm-search select:hover {
+    border-color: var(--rwbe-ym-border) !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.rwbe-ymm-search .rwbe-ymm-field select:focus,
+.rwbe-ymm-search .rwbe-ymm-field select:focus-visible,
+.rwbe-ymm-search select:focus,
+.rwbe-ymm-search select:focus-visible {
+    outline: none !important;
+    border-color: var(--rwbe-ym-border) !important;
+    box-shadow: none !important;
+}
+
+.rwbe-ymm-search select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.rwbe-ymm-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--rwbe-ym-field-h);
+    padding: 0 30px;
+    border: none;
+    border-radius: var(--rwbe-ym-radius);
+    background: var(--rwbe-ym-accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.rwbe-ymm-search .rwbe-ymm-submit:hover,
+.rwbe-ymm-search .rwbe-ymm-submit:focus,
+.rwbe-ymm-search .rwbe-ymm-submit:active {
+    background: var(--rwbe-ym-accent);
+    color: #fff;
+    border-color: var(--rwbe-ym-accent);
+}
+
+.rwbe-ymm-submit:active {
+    transform: translateY(1px);
+}
+
+.rwbe-ymm-submit:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+
+.rwbe-ymm-empty {
+    margin: 0;
+    color: #777;
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .rwbe-ymm-search {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 16px;
+    }
+    .rwbe-ymm-actions {
+        justify-content: stretch;
+    }
+    .rwbe-ymm-submit {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rwbe-ymm-search select,
+    .rwbe-ymm-submit {
+        transition: none;
+    }
+}
