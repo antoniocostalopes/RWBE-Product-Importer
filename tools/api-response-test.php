@@ -5,6 +5,17 @@
  * This script tests the API response structure to help debug the import issue.
  */
 
+// Diagnostic script: command line only.
+//
+// These files live inside a directory the web server serves, so without this they
+// answer HTTP requests from anyone — an unauthenticated endpoint that talks to the
+// supplier API. Run them as: RWBE_API_TOKEN=xxx php tools/<script>.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This diagnostic script can only be run from the command line.');
+}
+
+
 // Set error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);

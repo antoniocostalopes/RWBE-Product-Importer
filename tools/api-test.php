@@ -5,6 +5,17 @@
  * This script tests the connection to the RWBE API using the provided token.
  */
 
+// Diagnostic script: command line only.
+//
+// These files live inside a directory the web server serves, so without this they
+// answer HTTP requests from anyone — an unauthenticated endpoint that talks to the
+// supplier API. Run them as: RWBE_API_TOKEN=xxx php tools/<script>.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This diagnostic script can only be run from the command line.');
+}
+
+
 // API configuration
 $api_endpoint = 'https://portal.racewinningbrandseurope.com/apiv2/products/';
 // The API token is never hard-coded in this repository. It is read from, in order:
