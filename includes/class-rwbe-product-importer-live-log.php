@@ -4,6 +4,12 @@
  *
  * @since 1.0.0
  */
+
+// Exit when accessed directly: these files only make sense inside WordPress.
+if (!defined('WPINC')) {
+    die;
+}
+
 class RWBE_Product_Importer_Live_Log {
 
     /**
@@ -61,6 +67,41 @@ class RWBE_Product_Importer_Live_Log {
         add_action('admin_enqueue_scripts', array($this, 'register_assets'));
     }
     
+    /**
+     * Gate for every AJAX entry point in this class: the capability the page itself
+     * requires, then a valid nonce.
+     *
+     * These four endpoints previously checked the nonce and nothing else. A nonce only
+     * proves which page a request came from, never that the person is allowed to make
+     * it, and these start and stop a full catalogue import. They are registered
+     * without a 'nopriv' variant, so a logged-out visitor cannot reach them, and the
+     * nonce is only ever handed to a page that already requires 'manage_options' — but
+     * the capability check is what actually enforces that, so it belongs here. The
+     * sibling admin class has always checked both.
+     *
+     * The capability is tested first, so an unauthorised caller learns nothing about
+     * whether their nonce was valid. Both branches terminate (wp_send_json_error()
+     * calls wp_die()).
+     *
+     * @return void
+     */
+    private function authorize_ajax() {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(
+                array('message' => __('Não tem permissão para executar esta ação.', 'rwbe-product-importer')),
+                403
+            );
+        }
+
+        $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
+        if (!wp_verify_nonce($nonce, 'rwbe-live-log-nonce')) {
+            wp_send_json_error(
+                array('message' => __('Pedido expirado. Recarregue a página e tente novamente.', 'rwbe-product-importer')),
+                403
+            );
+        }
+    }
+
     /**
      * Add admin menu
      */
@@ -218,10 +259,7 @@ class RWBE_Product_Importer_Live_Log {
      * AJAX handler to get import logs
      */
     public function ajax_get_import_logs() {
-        // Verify nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rwbe-live-log-nonce')) {
-            wp_send_json_error(array('message' => 'Invalid nonce'));
-        }
+        $this->authorize_ajax();
         
         // Get import progress
         $progress = get_option('rwbe_import_progress', array());
@@ -330,10 +368,7 @@ class RWBE_Product_Importer_Live_Log {
      * AJAX handler to start import
      */
     public function ajax_start_import() {
-        // Verify nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rwbe-live-log-nonce')) {
-            wp_send_json_error(array('message' => 'Invalid nonce'));
-        }
+        $this->authorize_ajax();
         
         // Check if import is already in progress
         $progress = get_option('rwbe_import_progress', array());
@@ -385,10 +420,7 @@ class RWBE_Product_Importer_Live_Log {
      * AJAX handler to stop import
      */
     public function ajax_stop_import() {
-        // Verify nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rwbe-live-log-nonce')) {
-            wp_send_json_error(array('message' => 'Invalid nonce'));
-        }
+        $this->authorize_ajax();
         
         // Get current progress
         $progress = get_option('rwbe_import_progress', array());
@@ -427,10 +459,7 @@ class RWBE_Product_Importer_Live_Log {
      * AJAX handler to resume import
      */
     public function ajax_resume_import() {
-        // Verify nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rwbe-live-log-nonce')) {
-            wp_send_json_error(array('message' => 'Invalid nonce'));
-        }
+        $this->authorize_ajax();
         
         // Check if there's an import to resume
         $progress = get_option('rwbe_import_progress', array());

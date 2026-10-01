@@ -6,6 +6,17 @@
  * using the RWBE_Product_Importer class.
  */
 
+// Diagnostic script: command line only.
+//
+// These files live inside a directory the web server serves, so without this they
+// answer HTTP requests from anyone — an unauthenticated endpoint that talks to the
+// supplier API. Run them as: RWBE_API_TOKEN=xxx php tools/<script>.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This diagnostic script can only be run from the command line.');
+}
+
+
 // If this file is called directly, abort.
 if (!defined('WPINC')) {
     // Define WPINC to allow the script to run in standalone mode for testing

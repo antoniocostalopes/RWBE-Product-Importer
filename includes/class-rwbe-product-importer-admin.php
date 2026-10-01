@@ -4,6 +4,12 @@
  *
  * @since 1.0.0
  */
+
+// Exit when accessed directly: these files only make sense inside WordPress.
+if (!defined('WPINC')) {
+    die;
+}
+
 class RWBE_Product_Importer_Admin {
 
     /** Transient holding the dashboard's catalogue counters */

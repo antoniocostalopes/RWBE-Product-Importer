@@ -3,8 +3,20 @@
  * RWBE API Connection Test
  * 
  * This script tests the connection to the RWBE API using the provided token.
- * Run this file in a browser to see the results.
+ * Run it from the command line; redirect the output if you want to read the HTML:
+ *   RWBE_API_TOKEN=xxx php tools/browser-api-test.php > api-test-results.html
  */
+
+// Diagnostic script: command line only.
+//
+// These files live inside a directory the web server serves, so without this they
+// answer HTTP requests from anyone — an unauthenticated endpoint that talks to the
+// supplier API. Run them as: RWBE_API_TOKEN=xxx php tools/<script>.php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('This diagnostic script can only be run from the command line.');
+}
+
 
 // Set error reporting for debugging
 error_reporting(E_ALL);
