@@ -19,6 +19,20 @@ class RWBE_Product_Importer_Search {
     const QV_YEAR  = 'rwbe_year';
 
     /**
+     * The one WP_Query that inject_fitment_clauses() is allowed to touch.
+     *
+     * @var WP_Query|null
+     */
+    private $fitment_query = null;
+
+    /**
+     * Prepared SQL condition for the selected vehicle combination.
+     *
+     * @var string
+     */
+    private $fitment_clause = '';
+
+    /**
      * Register hooks.
      */
     public function init() {
@@ -63,33 +77,54 @@ class RWBE_Product_Importer_Search {
             RWBE_PRODUCT_IMPORTER_VERSION,
             true
         );
-        // Static make/model/year map. When present the dropdowns read these two
-        // JSON files straight from the web server; the AJAX endpoints below stay
-        // registered and are used as the fallback whenever the files are missing.
-        $map = class_exists('RWBE_Vehicle_Map') ? RWBE_Vehicle_Map::get_urls() : array('models' => '', 'years' => '');
-
-        wp_localize_script('rwbe-ymm-search', 'rwbeYmm', array(
-            'ajaxUrl'   => admin_url('admin-ajax.php'),
-            'nonce'     => wp_create_nonce('rwbe_ymm_nonce'),
-            'modelsUrl' => $map['models'],
-            'yearsUrl'  => $map['years'],
-            'i18n'    => array(
-                'selectModel' => __('Selecione o modelo', 'rwbe-product-importer'),
-                'selectYear'  => __('Selecione o ano', 'rwbe-product-importer'),
-                'loading'     => __('A carregar…', 'rwbe-product-importer'),
-                'noModels'    => __('Sem modelos disponíveis', 'rwbe-product-importer'),
-                'noYears'     => __('Sem anos disponíveis', 'rwbe-product-importer'),
-            ),
-        ));
-
         // Enqueue early when the shortcode is present in the singular content
         if (is_singular()) {
             $post = get_post();
             if ($post && has_shortcode($post->post_content, self::SHORTCODE)) {
-                wp_enqueue_style('rwbe-ymm-search');
-                wp_enqueue_script('rwbe-ymm-search');
+                self::enqueue_assets();
             }
         }
+    }
+
+    /**
+     * Enqueue the search assets, localising them on the way.
+     *
+     * The localised data used to be built inside register_assets(), on every single
+     * front-end request — including the overwhelming majority of pages that never
+     * render the form. That cost a nonce plus RWBE_Vehicle_Map::get_urls() (an option
+     * read and two file_exists()) for nothing. It is now built once, and only when
+     * the script is actually going out.
+     */
+    private static function enqueue_assets() {
+        static $localized = false;
+
+        if (!$localized) {
+            $localized = true;
+
+            // Static make/model/year map. When present the dropdowns read these two
+            // JSON files straight from the web server; the AJAX endpoints stay
+            // registered and are used as the fallback whenever the files are missing.
+            $map = class_exists('RWBE_Vehicle_Map')
+                ? RWBE_Vehicle_Map::get_urls()
+                : array('models' => '', 'years' => '');
+
+            wp_localize_script('rwbe-ymm-search', 'rwbeYmm', array(
+                'ajaxUrl'   => admin_url('admin-ajax.php'),
+                'nonce'     => wp_create_nonce('rwbe_ymm_nonce'),
+                'modelsUrl' => $map['models'],
+                'yearsUrl'  => $map['years'],
+                'i18n'    => array(
+                    'selectModel' => __('Selecione o modelo', 'rwbe-product-importer'),
+                    'selectYear'  => __('Selecione o ano', 'rwbe-product-importer'),
+                    'loading'     => __('A carregar…', 'rwbe-product-importer'),
+                    'noModels'    => __('Sem modelos disponíveis', 'rwbe-product-importer'),
+                    'noYears'     => __('Sem anos disponíveis', 'rwbe-product-importer'),
+                ),
+            ));
+        }
+
+        wp_enqueue_style('rwbe-ymm-search');
+        wp_enqueue_script('rwbe-ymm-search');
     }
 
     /**
@@ -111,8 +146,7 @@ class RWBE_Product_Importer_Search {
         $show_year = !in_array(strtolower((string) $atts['show_year']), array('no', 'false', '0', ''), true);
 
         // Ensure assets are loaded (covers page builders / widgets too)
-        wp_enqueue_style('rwbe-ymm-search');
-        wp_enqueue_script('rwbe-ymm-search');
+        self::enqueue_assets();
 
         // Build the static map in the background if it is not there yet.
         if (class_exists('RWBE_Vehicle_Map')) {
@@ -255,7 +289,7 @@ class RWBE_Product_Importer_Search {
         if (!class_exists('RWBE_Fitment') || !RWBE_Fitment::is_ready()) {
             return null;
         }
-        $map = RWBE_Fitment::get_model_map();
+        $map = RWBE_Fitment::get_model_map($make_slug);
         return isset($map[$make_slug]) ? $map[$make_slug] : array();
     }
 
@@ -270,7 +304,7 @@ class RWBE_Product_Importer_Search {
         if (!class_exists('RWBE_Fitment') || !RWBE_Fitment::is_ready()) {
             return null;
         }
-        $map  = RWBE_Fitment::get_year_map();
+        $map  = RWBE_Fitment::get_year_map($make_slug, $model_slug);
         $key  = $make_slug . '|' . $model_slug;
         $list = isset($map[$key]) ? $map[$key] : array();
 
@@ -394,8 +428,14 @@ class RWBE_Product_Importer_Search {
      * selected make + model (+ year), using the fitment table.
      *
      * Only takes over when a model or a year is selected: a make on its own has no
-     * pairing to get wrong, and the taxonomy clause is cheaper than a post__in with
-     * thousands of ids.
+     * pairing to get wrong, and a plain taxonomy clause is cheaper.
+     *
+     * The table is JOINed onto the query rather than resolved to a list of ids. The
+     * previous version ran the lookup itself and handed the result to post__in, which
+     * put an IN() of up to 20000 integers on the main shop query — and needed a cap
+     * above which it gave up and fell back to the over-inclusive taxonomy path,
+     * silently widening the results for exactly the busiest makes. A JOIN has no such
+     * ceiling, so the exact-combination filter now always applies.
      *
      * @param WP_Query $query
      * @param string   $make
@@ -415,27 +455,45 @@ class RWBE_Product_Importer_Search {
             return false;
         }
 
-        $limit = (int) apply_filters('rwbe_fitment_filter_max_ids', 20000);
-        $ids   = RWBE_Fitment::product_ids($make, $model, (int) $year, $limit);
-
-        // A truncated list would silently hide products; the taxonomy path is
-        // over-inclusive but at least complete, so prefer it in that case.
-        if (count($ids) >= $limit) {
+        $clause = RWBE_Fitment::where_clause($make, $model, (int) $year);
+        if ($clause === null) {
             return false;
         }
 
-        // Respect an existing post__in (another plugin may already have narrowed
-        // the query) by intersecting rather than replacing.
-        $existing = $query->get('post__in');
-        if (is_array($existing) && !empty($existing)) {
-            $ids = array_values(array_intersect(array_map('intval', $existing), $ids));
-        }
-
-        // An empty match means "no products", not "no filter" — post__in must stay
-        // non-empty or WordPress ignores it and returns the whole catalogue.
-        $query->set('post__in', empty($ids) ? array(0) : $ids);
+        $this->fitment_clause = $clause;
+        $this->fitment_query  = $query;
+        add_filter('posts_clauses', array($this, 'inject_fitment_clauses'), 10, 2);
 
         return true;
+    }
+
+    /**
+     * Append the fitment JOIN + condition to the one query apply_fitment_filter()
+     * marked. Every other query passes through untouched.
+     *
+     * Any post__in another plugin set stays in place: the JOIN narrows on top of it
+     * rather than replacing it, which is what the old intersection did by hand.
+     *
+     * @param array    $clauses
+     * @param WP_Query $query
+     * @return array
+     */
+    public function inject_fitment_clauses($clauses, $query) {
+        if ($this->fitment_query === null || $query !== $this->fitment_query) {
+            return $clauses;
+        }
+        // Idempotent: never append the same JOIN twice if the query is run again.
+        if (isset($clauses['join']) && strpos($clauses['join'], RWBE_Fitment::QUERY_ALIAS) !== false) {
+            return $clauses;
+        }
+
+        // A product has one fitment row per application, so several can match the
+        // same selection; without this the catalogue would list it repeatedly.
+        $clauses['distinct'] = 'DISTINCT';
+        $clauses['join']     = (isset($clauses['join']) ? $clauses['join'] : '') . RWBE_Fitment::query_join();
+        $clauses['where']    = (isset($clauses['where']) ? $clauses['where'] : '') . ' AND ' . $this->fitment_clause;
+
+        return $clauses;
     }
 
     /**

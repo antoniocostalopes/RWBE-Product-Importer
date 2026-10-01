@@ -49,6 +49,22 @@ class RWBE_Fitment {
     const DEFAULT_MIN_COVERAGE = 0.9;
 
     /**
+     * Per-request memo for table_exists(). A SHOW TABLES round trip per call added
+     * up: is_ready() is consulted several times on a filtered shop request and on
+     * every dropdown AJAX call.
+     *
+     * @var bool|null
+     */
+    private static $table_exists = null;
+
+    /**
+     * Per-request memo for is_ready().
+     *
+     * @var bool|null
+     */
+    private static $is_ready = null;
+
+    /**
      * Full table name.
      *
      * @return string
@@ -103,6 +119,10 @@ class RWBE_Fitment {
         dbDelta($sql);
 
         update_option(self::OPT_SCHEMA, self::SCHEMA_VERSION, false);
+
+        // The table may have just come into existence.
+        self::$table_exists = null;
+        self::$is_ready = null;
     }
 
     /**
@@ -252,9 +272,15 @@ class RWBE_Fitment {
      * @return bool
      */
     public static function table_exists() {
+        if (self::$table_exists !== null) {
+            return self::$table_exists;
+        }
+
         global $wpdb;
         $table = self::table();
-        return (bool) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+        self::$table_exists = (bool) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+
+        return self::$table_exists;
     }
 
     /**
@@ -330,6 +356,8 @@ class RWBE_Fitment {
      */
     public static function flush_coverage_cache() {
         delete_transient(self::CACHE_COVERAGE);
+        // Coverage is what is_ready() decides on, so its memo has to go too.
+        self::$is_ready = null;
     }
 
     /**
@@ -341,6 +369,21 @@ class RWBE_Fitment {
      * @return bool
      */
     public static function is_ready() {
+        if (self::$is_ready !== null) {
+            return self::$is_ready;
+        }
+
+        self::$is_ready = self::compute_is_ready();
+
+        return self::$is_ready;
+    }
+
+    /**
+     * The actual readiness test behind is_ready()'s per-request memo.
+     *
+     * @return bool
+     */
+    private static function compute_is_ready() {
         if (!self::table_exists()) {
             return false;
         }
@@ -391,20 +434,35 @@ class RWBE_Fitment {
     /**
      * Every make → model pair, keyed by make slug.
      *
+     * Pass a make to get just that make's models. Without it the whole map is built,
+     * which is what the static JSON map builder needs but not what a single dropdown
+     * request does.
+     *
+     * @param string $make_slug Optional: restrict to one make.
      * @return array Map of make slug => list of ['slug' => ..., 'name' => ...]
      */
-    public static function get_model_map() {
+    public static function get_model_map($make_slug = '') {
         global $wpdb;
         $table = self::table();
-        $rows = $wpdb->get_results(
-            "SELECT f.make_slug, f.model_slug AS slug, MIN(f.model_name) AS name
-             FROM {$table} f
-             INNER JOIN {$wpdb->posts} p ON p.ID = f.product_id
-                    AND p.post_type = 'product' AND p.post_status = 'publish'
-             WHERE f.make_slug <> '' AND f.model_slug <> ''
-             GROUP BY f.make_slug, f.model_slug
-             ORDER BY f.make_slug ASC, name ASC"
-        );
+
+        $where  = array("f.make_slug <> ''", "f.model_slug <> ''");
+        $params = array();
+        if ($make_slug !== '') {
+            $where[]  = 'f.make_slug = %s';
+            $params[] = $make_slug;
+        }
+
+        $sql = "SELECT f.make_slug, f.model_slug AS slug, MIN(f.model_name) AS name
+                FROM {$table} f
+                INNER JOIN {$wpdb->posts} p ON p.ID = f.product_id
+                       AND p.post_type = 'product' AND p.post_status = 'publish'
+                WHERE " . implode(' AND ', $where) . "
+                GROUP BY f.make_slug, f.model_slug
+                ORDER BY f.make_slug ASC, name ASC";
+
+        $rows = empty($params)
+            ? $wpdb->get_results($sql)
+            : $wpdb->get_results($wpdb->prepare($sql, $params));
 
         $out = array();
         if ($rows) {
@@ -418,18 +476,41 @@ class RWBE_Fitment {
     /**
      * Every make|model → years list, expanded from the stored ranges.
      *
+     * Pass a make (and optionally a model) to get just that slice. Without them the
+     * whole catalogue's ranges are read and expanded in PHP, which is what the static
+     * JSON map builder needs — but it is badly wasteful when a dropdown only wants
+     * the years of one make/model pair, which is the AJAX fallback's entire job.
+     *
+     * @param string $make_slug  Optional: restrict to one make.
+     * @param string $model_slug Optional: restrict to one model (needs $make_slug).
      * @return array Map of "make|model" => list of year strings, newest first.
      */
-    public static function get_year_map() {
+    public static function get_year_map($make_slug = '', $model_slug = '') {
         global $wpdb;
         $table = self::table();
-        $rows = $wpdb->get_results(
-            "SELECT DISTINCT f.make_slug, f.model_slug, f.year_from, f.year_to
-             FROM {$table} f
-             INNER JOIN {$wpdb->posts} p ON p.ID = f.product_id
-                    AND p.post_type = 'product' AND p.post_status = 'publish'
-             WHERE f.make_slug <> '' AND f.model_slug <> '' AND f.year_from > 0"
-        );
+
+        $where  = array("f.make_slug <> ''", "f.model_slug <> ''", 'f.year_from > 0');
+        $params = array();
+
+        if ($make_slug !== '') {
+            $where[]  = 'f.make_slug = %s';
+            $params[] = $make_slug;
+
+            if ($model_slug !== '') {
+                $where[]  = 'f.model_slug = %s';
+                $params[] = $model_slug;
+            }
+        }
+
+        $sql = "SELECT DISTINCT f.make_slug, f.model_slug, f.year_from, f.year_to
+                FROM {$table} f
+                INNER JOIN {$wpdb->posts} p ON p.ID = f.product_id
+                       AND p.post_type = 'product' AND p.post_status = 'publish'
+                WHERE " . implode(' AND ', $where);
+
+        $rows = empty($params)
+            ? $wpdb->get_results($sql)
+            : $wpdb->get_results($wpdb->prepare($sql, $params));
 
         $sets = array();
         if ($rows) {
@@ -457,6 +538,62 @@ class RWBE_Fitment {
             $out[$key] = array_map('strval', $list);
         }
         return $out;
+    }
+
+    /**
+     * Table alias used when the fitment table is joined onto a WP_Query.
+     */
+    const QUERY_ALIAS = 'rwbe_fit';
+
+    /**
+     * A prepared SQL condition selecting an exact vehicle combination, written
+     * against the QUERY_ALIAS alias so it can be appended to a WP_Query's WHERE.
+     *
+     * This exists so the shop query can JOIN the table instead of being handed a
+     * list of ids: a popular make+model matched thousands of products, and feeding
+     * those to post__in meant an IN() with up to 20000 integers on the main query —
+     * and a hard cap above which the filter gave up and fell back to the
+     * over-inclusive taxonomy path.
+     *
+     * @param string $make_slug
+     * @param string $model_slug Optional.
+     * @param int    $year       Optional.
+     * @return string|null Null when there is nothing to filter on.
+     */
+    public static function where_clause($make_slug, $model_slug = '', $year = 0) {
+        global $wpdb;
+
+        $alias = self::QUERY_ALIAS;
+
+        $make_slug = sanitize_title($make_slug);
+        if ($make_slug === '') {
+            return null;
+        }
+
+        $where = array($wpdb->prepare("{$alias}.make_slug = %s", $make_slug));
+
+        $model_slug = $model_slug === '' ? '' : sanitize_title($model_slug);
+        if ($model_slug !== '') {
+            $where[] = $wpdb->prepare("{$alias}.model_slug = %s", $model_slug);
+        }
+
+        $year = (int) $year;
+        if ($year > 0) {
+            $where[] = $wpdb->prepare("{$alias}.year_from <= %d AND {$alias}.year_to >= %d", $year, $year);
+        }
+
+        return implode(' AND ', $where);
+    }
+
+    /**
+     * The JOIN that brings the fitment table into a WP_Query, aliased to QUERY_ALIAS.
+     *
+     * @return string
+     */
+    public static function query_join() {
+        global $wpdb;
+        return ' INNER JOIN ' . self::table() . ' ' . self::QUERY_ALIAS
+            . ' ON ' . self::QUERY_ALIAS . ".product_id = {$wpdb->posts}.ID ";
     }
 
     /**

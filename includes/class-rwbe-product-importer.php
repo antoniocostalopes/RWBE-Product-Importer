@@ -42,6 +42,19 @@ class RWBE_Product_Importer {
     private $image_source_cache = array();
 
     /**
+     * Stock figures fetched from the /stock endpoint for the batch being processed,
+     * keyed by API product id. Values are int or null ("asked, nothing usable").
+     *
+     * The cron path needs the live stock of every single product, and fetching it
+     * one blocking request at a time was the dominant cost of a full sync: 35k
+     * sequential round trips. prefetch_stock() fills this map for a whole batch in
+     * parallel, and fetch_stock_for_product() reads it instead of going out again.
+     *
+     * @var array
+     */
+    private $stock_cache = array();
+
+    /**
      * Resolve a taxonomy term by name, creating it if needed, with an in-memory
      * cache so repeated names across products don't hit the DB each time.
      *
@@ -216,11 +229,16 @@ class RWBE_Product_Importer {
      * then deletes the attachment and its files. The repointing is done once for
      * the whole batch, not once per attachment (see reassign_attachment_references).
      *
-     * @param int  $batch_size How many attachments to scan this call.
-     * @param bool $reset      Start a fresh pass (rewind the cursor to 0).
+     * @param int  $batch_size      How many attachments to scan this call.
+     * @param bool $reset           Start a fresh pass (rewind the cursor to 0).
+     * @param bool $count_remaining Also count what is left. That is a full scan of the
+     *                              candidate set (~1.7s on a 195k-attachment library)
+     *                              and feeds nothing but the progress bar, so the
+     *                              worker asks for it once per pass and derives the
+     *                              rest. 'remaining' is null when not counted.
      * @return array {processed, deleted, remaining, done, canonical, error?}
      */
-    public function cleanup_placeholder_duplicates($batch_size = 300, $reset = false) {
+    public function cleanup_placeholder_duplicates($batch_size = 300, $reset = false, $count_remaining = true) {
         global $wpdb;
 
         if ($reset) {
@@ -252,14 +270,20 @@ class RWBE_Product_Importer {
             );
         }
 
-        // Next window of imported attachments (they all carry _rwbe_source_url).
-        $ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT p.ID FROM {$wpdb->posts} p
-             INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_rwbe_source_url'
-             WHERE p.post_type = 'attachment' AND p.ID > %d
+        // Next window of candidate attachments.
+        $ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT p.ID " . $this->cleanup_candidate_sql() . "
              ORDER BY p.ID ASC LIMIT %d",
-            $cursor, $batch_size
-        ));
+            $cursor, $this->placeholder_metadata_needle(), $batch_size
+        )));
+
+        // The window comes back as bare IDs from raw SQL, so nothing is in cache yet.
+        // Without this, get_attached_file() below and wp_delete_attachment() further
+        // down each trigger their own post + meta lookup, i.e. hundreds of queries per
+        // batch; priming them costs two.
+        if (!empty($ids)) {
+            _prime_post_caches($ids, false, true);
+        }
 
         $processed = 0;
         $last = $cursor;
@@ -287,29 +311,111 @@ class RWBE_Product_Importer {
             $duplicates[] = $aid;
         }
 
+        $deleted = 0;
         if (!empty($duplicates)) {
-            $this->reassign_attachment_references($duplicates, $canonical);
+            // Deleting before knowing the repoint worked is how products end up with
+            // a _thumbnail_id or a gallery entry pointing at an attachment that no
+            // longer exists. The repoint now reports failure (a REGEXP that MySQL
+            // refuses under regexp_time_limit, a lost connection mid-UPDATE) and the
+            // batch stops with the duplicates still on disk, which is recoverable;
+            // broken references are not.
+            if (!$this->reassign_attachment_references($duplicates, $canonical)) {
+                RWBE_Debug_Logger::log('Aborting placeholder cleanup batch: repoint failed, nothing deleted', [
+                    'duplicates' => count($duplicates),
+                    'canonical'  => $canonical,
+                ]);
+                return array(
+                    'processed' => $processed,
+                    'deleted'   => 0,
+                    'remaining' => null,
+                    'done'      => true,
+                    'canonical' => $canonical,
+                    'error'     => __('Não foi possível reapontar os produtos para a imagem partilhada, por isso nada foi eliminado. Nenhum produto ficou com imagem em falta. Verifique o debug log e tente novamente.', 'rwbe-product-importer'),
+                );
+            }
+
             foreach ($duplicates as $aid) {
                 wp_delete_attachment($aid, true); // true => also delete files from disk
+                $deleted++;
             }
         }
 
+        // Only advance the cursor once the batch has actually finished its deletions,
+        // so an abort above re-examines the same window instead of skipping past it.
         update_option('rwbe_ph_cleanup_cursor', $last, false);
-
-        $remaining = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p
-             INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_rwbe_source_url'
-             WHERE p.post_type = 'attachment' AND p.ID > %d",
-            $last
-        ));
 
         return array(
             'processed' => $processed,
-            'deleted'   => count($duplicates),
-            'remaining' => $remaining,
+            'deleted'   => $deleted,
+            // Counting what is left is a ~1.7s scan of the whole candidate set. It is
+            // only ever shown on a progress bar, so the caller asks for it once per
+            // pass and derives the rest from total - scanned.
+            'remaining' => $count_remaining ? $this->count_cleanup_candidates($last) : null,
             'done'      => (count($ids) < $batch_size),
             'canonical' => $canonical,
         );
+    }
+
+    /**
+     * Shared FROM/WHERE for the attachments a cleanup pass has to look at.
+     *
+     * Expects three prepare() arguments, in this order: the cursor (%d), the
+     * metadata needle (%s) and — when the caller adds a LIMIT — the batch size.
+     *
+     * Imported attachments all carry _rwbe_source_url. On top of that, WordPress
+     * records each file's byte size inside _wp_attachment_metadata, so the
+     * placeholder's known size excludes the images that cannot possibly be it. On the
+     * live catalogue that narrows 185k attachments to the 73k that are real
+     * candidates — the other 112k were being opened and hashed from disk for nothing.
+     *
+     * is_placeholder_attachment() still has the final say, so this is a pre-filter and
+     * nothing more: the worst it can do is leave a duplicate behind, which another
+     * pass picks up. It can never cause the wrong image to be deleted. Attachments
+     * whose metadata is missing, or carries no filesize at all, stay in the candidate
+     * set rather than being assumed innocent.
+     *
+     * @return string
+     */
+    private function cleanup_candidate_sql() {
+        global $wpdb;
+
+        // %% because prepare() scans this string for placeholders.
+        return "FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_rwbe_source_url'
+                LEFT JOIN {$wpdb->postmeta} md ON md.post_id = p.ID AND md.meta_key = '_wp_attachment_metadata'
+                WHERE p.post_type = 'attachment'
+                  AND p.ID > %d
+                  AND (
+                        md.meta_value IS NULL
+                     OR md.meta_value NOT LIKE '%%\"filesize\";i:%%'
+                     OR md.meta_value LIKE %s
+                  )";
+    }
+
+    /**
+     * LIKE needle matching the placeholder's byte size inside the serialised
+     * _wp_attachment_metadata blob.
+     *
+     * @return string
+     */
+    private function placeholder_metadata_needle() {
+        return '%s:8:"filesize";i:' . (int) self::PLACEHOLDER_SIZE . ';%';
+    }
+
+    /**
+     * How many candidate attachments are still above a cursor.
+     *
+     * @param int $cursor
+     * @return int
+     */
+    private function count_cleanup_candidates($cursor) {
+        global $wpdb;
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT p.ID) " . $this->cleanup_candidate_sql(),
+            (int) $cursor,
+            $this->placeholder_metadata_needle()
+        ));
     }
 
     /**
@@ -548,7 +654,10 @@ class RWBE_Product_Importer {
                     break;
                 }
 
-                $result = $this->cleanup_placeholder_duplicates($batch_size, false);
+                // Counting what is left is a full scan of the candidate set, so it is
+                // asked for only on the batch that needs it to fix the pass total.
+                $need_total = ($state['total'] <= 0);
+                $result = $this->cleanup_placeholder_duplicates($batch_size, false, $need_total);
 
                 if (!empty($result['error'])) {
                     $state['running'] = false;
@@ -556,17 +665,23 @@ class RWBE_Product_Importer {
                     break;
                 }
 
-                $state['scanned']  += (int) $result['processed'];
-                $state['deleted']  += (int) $result['deleted'];
-                $state['remaining'] = (int) $result['remaining'];
-                if ($state['total'] <= 0) {
+                $state['scanned'] += (int) $result['processed'];
+                $state['deleted'] += (int) $result['deleted'];
+
+                if ($need_total) {
                     // Fixed on the first batch of this pass: everything still to scan.
-                    $state['total'] = $state['scanned'] + (int) $result['remaining'];
+                    $state['total']     = $state['scanned'] + (int) $result['remaining'];
+                    $state['remaining'] = (int) $result['remaining'];
+                } else {
+                    // Derived, not re-counted. The cursor only moves forward, so this
+                    // tracks the real figure without a 1.7s query per batch.
+                    $state['remaining'] = max(0, $state['total'] - $state['scanned']);
                 }
 
                 if (!empty($result['done'])) {
-                    $state['running'] = false;
-                    $state['done'] = true;
+                    $state['running']   = false;
+                    $state['done']      = true;
+                    $state['remaining'] = 0;
                     RWBE_Debug_Logger::log('Placeholder cleanup finished', [
                         'scanned' => $state['scanned'], 'deleted' => $state['deleted']
                     ]);
@@ -575,14 +690,25 @@ class RWBE_Product_Importer {
 
                 $state = $this->save_placeholder_cleanup_state($state);
             } while ((time() - $started) < $max_seconds);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            // \Throwable, not Exception: wp_delete_attachment() runs third-party
+            // delete_post hooks, and a TypeError from one of those is an \Error. Caught
+            // as Exception only, it escaped — leaving the run flagged as running with
+            // its progress unsaved, so the watchdog re-queued the very same batch for
+            // ever. The cursor is advanced inside each batch, so the retry resumes
+            // instead of repeating.
             $state['running'] = false;
             $state['error'] = $e->getMessage();
-            RWBE_Debug_Logger::log('Placeholder cleanup worker crashed', ['error' => $e->getMessage()]);
+            RWBE_Debug_Logger::log('Placeholder cleanup worker crashed', [
+                'error' => $e->getMessage(),
+                'type'  => get_class($e),
+            ]);
+        } finally {
+            // Must happen even on the way out through a Throwable, or the next worker
+            // finds the lock held and the progress bar frozen on a stale snapshot.
+            $this->release_lock(self::CLEANUP_LOCK_NAME);
+            $this->save_placeholder_cleanup_state($state);
         }
-
-        $this->release_lock(self::CLEANUP_LOCK_NAME);
-        $this->save_placeholder_cleanup_state($state);
 
         if (!empty($state['running'])) {
             // Back off while an import holds the attachments; otherwise pick the
@@ -626,6 +752,9 @@ class RWBE_Product_Importer {
      *
      * @param int[] $from_ids Attachments being removed.
      * @param int   $to_id    Attachment to point references at.
+     * @return bool True when every reference was repointed. False means the caller
+     *              must NOT delete the attachments: something in the references is
+     *              still pointing at them.
      */
     private function reassign_attachment_references($from_ids, $to_id) {
         global $wpdb;
@@ -633,7 +762,7 @@ class RWBE_Product_Importer {
         $from_ids = array_values(array_unique(array_filter(array_map('intval', (array) $from_ids))));
         $to_id = (int) $to_id;
         if (empty($from_ids) || !$to_id) {
-            return;
+            return false;
         }
 
         $in = implode(',', $from_ids); // ints only, safe to interpolate
@@ -645,12 +774,20 @@ class RWBE_Product_Importer {
             "SELECT post_id FROM {$wpdb->postmeta}
              WHERE meta_key = '_thumbnail_id' AND meta_value IN ({$in})"
         );
+        if ($wpdb->last_error) {
+            RWBE_Debug_Logger::log('Repoint failed reading featured images', ['error' => $wpdb->last_error]);
+            return false;
+        }
         if (!empty($thumb_posts)) {
-            $wpdb->query($wpdb->prepare(
+            $updated = $wpdb->query($wpdb->prepare(
                 "UPDATE {$wpdb->postmeta} SET meta_value = %s
                  WHERE meta_key = '_thumbnail_id' AND meta_value IN ({$in})",
                 (string) $to_id
             ));
+            if ($updated === false) {
+                RWBE_Debug_Logger::log('Repoint failed updating featured images', ['error' => $wpdb->last_error]);
+                return false;
+            }
             $touched = array_merge($touched, $thumb_posts);
         }
 
@@ -662,6 +799,17 @@ class RWBE_Product_Importer {
              WHERE meta_key = '_product_image_gallery' AND meta_value REGEXP %s",
             $pattern
         ));
+        // MySQL rejects a pattern that exceeds regexp_time_limit (default 32) or
+        // regexp_stack_limit. get_results() then returns an empty array, which is
+        // indistinguishable from "no gallery uses these" — and the caller would go on
+        // to delete attachments the galleries still reference. Check explicitly.
+        if ($wpdb->last_error) {
+            RWBE_Debug_Logger::log('Repoint failed scanning galleries', [
+                'error' => $wpdb->last_error,
+                'ids'   => count($from_ids),
+            ]);
+            return false;
+        }
 
         $replace = array_fill_keys($from_ids, $to_id);
         foreach ($rows as $row) {
@@ -688,6 +836,8 @@ class RWBE_Product_Importer {
                 wc_delete_product_transients($post_id);
             }
         }
+
+        return true;
     }
 
     /**
@@ -829,14 +979,35 @@ class RWBE_Product_Importer {
             'headers' => array(
                 'Authorization' => 'Bearer ' . $token,
                 'Accept' => 'application/json',
+                'Cache-Control' => 'no-cache',
             ),
             'timeout' => $timeout,
             'httpversion' => '1.1',
             'sslverify' => true,
             'redirection' => 3,
         );
-        $url = add_query_arg('_nocache', uniqid('', true), $url);
+        $url = add_query_arg('_nocache', self::cache_buster(), $url);
         return wp_remote_get($url, $args);
+    }
+
+    /**
+     * Cache-busting token for API URLs.
+     *
+     * Still unique per run — a new PHP request gets a new token, so a sync never
+     * sees data cached from an earlier one. What changed is that it is no longer
+     * unique per *call*: a full import issues ~70k requests, and giving each one its
+     * own URL made every response uncacheable anywhere along the path and filled the
+     * supplier's caches with single-use entries. A no-cache request header carries
+     * the same intent properly.
+     *
+     * @return string
+     */
+    private static function cache_buster() {
+        static $token = null;
+        if ($token === null) {
+            $token = uniqid('', true);
+        }
+        return $token;
     }
 
     /**
@@ -862,8 +1033,16 @@ class RWBE_Product_Importer {
      */
     private function fetch_stock_for_product($api_product_id) {
         if (empty($api_product_id)) return null;
-        $base = defined('RWBE_API_ENDPOINT_STOCK') ? RWBE_API_ENDPOINT_STOCK : 'https://portal.racewinningbrandseurope.com/apiv2/stock';
-        $url = add_query_arg(array('product_id' => $api_product_id), trailingslashit($base));
+
+        // Served by prefetch_stock() when the batch has already been fetched in
+        // parallel. array_key_exists, not isset: a cached null means "asked, no
+        // usable answer" and must not trigger a second request.
+        $cache_key = (string) $api_product_id;
+        if (array_key_exists($cache_key, $this->stock_cache)) {
+            return $this->stock_cache[$cache_key];
+        }
+
+        $url = $this->stock_url_for($api_product_id);
         $response = $this->api_get($url, 45);
         if (is_wp_error($response)) {
             RWBE_Debug_Logger::log('Stock endpoint error', ['product_id' => $api_product_id, 'error' => $response->get_error_message()]);
@@ -873,6 +1052,144 @@ class RWBE_Product_Importer {
         $body = json_decode(wp_remote_retrieve_body($response), true);
         if (isset($body['stock'])) return intval($body['stock']);
         return null;
+    }
+
+    /**
+     * Write a post meta value only when it differs from what is already stored.
+     *
+     * update_post_meta() does short-circuit an identical value, but only on a strict
+     * comparison against the raw string the database handed back. The importer passes
+     * ints and floats (stock, prices), so "5" === 5 was always false and every single
+     * product reported itself as changed on every run — which is what made the
+     * twice-daily sync re-save the whole catalogue. Comparing as strings answers the
+     * question that actually matters: is the stored value already this one?
+     *
+     * @param int    $product_id Product ID
+     * @param string $key        Meta key
+     * @param mixed  $value      Value to store
+     * @return bool True when the stored value was changed (or created).
+     */
+    private function update_meta_if_changed($product_id, $key, $value) {
+        if (is_scalar($value) || $value === null) {
+            if (metadata_exists('post', $product_id, $key)) {
+                $current = get_post_meta($product_id, $key, true);
+                if (is_scalar($current) && (string) $current === (string) $value) {
+                    return false;
+                }
+            }
+            update_post_meta($product_id, $key, $value);
+            return true;
+        }
+
+        // Arrays/objects: let WordPress do the (serialized) comparison.
+        return (bool) update_post_meta($product_id, $key, $value);
+    }
+
+    /**
+     * Collect the API product ids present in a batch of API payloads.
+     *
+     * @param array $products Products as returned by fetch_products_from_api().
+     * @return array List of ids (products without one are skipped).
+     */
+    private function collect_api_ids($products) {
+        $ids = array();
+        foreach ((array) $products as $product) {
+            if (is_array($product) && !empty($product['id'])) {
+                $ids[] = $product['id'];
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * Build the /stock endpoint URL for one API product id.
+     *
+     * @param string $api_product_id
+     * @return string
+     */
+    private function stock_url_for($api_product_id) {
+        $base = defined('RWBE_API_ENDPOINT_STOCK') ? RWBE_API_ENDPOINT_STOCK : 'https://portal.racewinningbrandseurope.com/apiv2/stock';
+        return add_query_arg(array('product_id' => $api_product_id), trailingslashit($base));
+    }
+
+    /**
+     * Fetch the live stock of a whole batch of products concurrently.
+     *
+     * Same endpoint, same parsing and the same "null means unusable" outcome as
+     * fetch_stock_for_product() — only the transport differs: Requests does the
+     * round trips in parallel instead of one after another. Products whose request
+     * fails are deliberately left out of the cache, so the caller falls back to a
+     * single retry through fetch_stock_for_product() exactly as before.
+     *
+     * @param array $api_product_ids API product ids.
+     * @param int   $concurrency     Requests in flight per round.
+     * @return void
+     */
+    private function prefetch_stock($api_product_ids, $concurrency = 10) {
+        // Each batch stands on its own; dropping the previous one keeps the map
+        // small on a 35k-product run.
+        $this->stock_cache = array();
+
+        $ids = array();
+        foreach ((array) $api_product_ids as $id) {
+            if ($id === null || $id === '') {
+                continue;
+            }
+            $ids[(string) $id] = true;
+        }
+        $ids = array_keys($ids);
+        if (empty($ids)) {
+            return;
+        }
+
+        $token = rwbe_get_api_token();
+        if ($token === '') {
+            RWBE_Debug_Logger::log('Stock prefetch aborted: no API token configured');
+            return;
+        }
+
+        $headers = array(
+            'Authorization' => 'Bearer ' . $token,
+            'Accept' => 'application/json',
+            'Cache-Control' => 'no-cache',
+        );
+
+        $fetched = 0;
+        foreach (array_chunk($ids, max(1, (int) $concurrency)) as $chunk) {
+            $requests = array();
+            foreach ($chunk as $id) {
+                $requests[$id] = array(
+                    'url' => $this->stock_url_for($id),
+                    'headers' => $headers,
+                    'type' => 'GET',
+                    'options' => array('timeout' => 45),
+                );
+            }
+
+            $responses = $this->request_multiple_compat($requests, 45);
+
+            foreach ($chunk as $id) {
+                $resp = isset($responses[$id]) ? $responses[$id] : null;
+                $code = (is_object($resp) && isset($resp->status_code)) ? intval($resp->status_code) : 0;
+                $body = (is_object($resp) && isset($resp->body)) ? $resp->body : '';
+
+                if ($code !== 200 || $body === '') {
+                    // Leave it uncached: the per-product call retries it once.
+                    continue;
+                }
+
+                $decoded = json_decode($body, true);
+                $this->stock_cache[(string) $id] = (is_array($decoded) && isset($decoded['stock']))
+                    ? intval($decoded['stock'])
+                    : null;
+                $fetched++;
+            }
+        }
+
+        RWBE_Debug_Logger::log('Stock prefetched in parallel', [
+            'requested' => count($ids),
+            'resolved' => $fetched,
+        ]);
     }
 
     /**
@@ -1085,9 +1402,16 @@ class RWBE_Product_Importer {
             );
         }
 
+        // Term counts are recomputed once, at the end of the run, instead of after
+        // every term assignment of every product. Each product touches brand, group,
+        // make, model and year terms, so this removes several COUNT queries per
+        // product without changing the counts anyone ever reads.
+        wp_defer_term_counting(true);
+
         try {
             return $this->run_import($is_cron, $resume);
         } finally {
+            wp_defer_term_counting(false);
             $this->release_import_lock();
         }
     }
@@ -1199,6 +1523,13 @@ class RWBE_Product_Importer {
             RWBE_Debug_Logger::log('Products fetched successfully', ['count' => count($products)]);
             $results['total'] += count($products);
 
+            // The cron path refreshes stock for every product, so fetch the whole
+            // batch's live figures concurrently instead of one blocking request per
+            // product inside the loop below.
+            if ($is_cron) {
+                $this->prefetch_stock($this->collect_api_ids($products));
+            }
+
             foreach ($products as $product_data) {
                 RWBE_Debug_Logger::log('Processing product', ['itemCode' => $product_data['itemCode'], 'title' => $product_data['title']]);
                 $import_result = $this->process_product($product_data, $is_cron);
@@ -1226,7 +1557,7 @@ class RWBE_Product_Importer {
                 'skip' => $skip,
                 'results' => $results,
                 'timestamp' => time()
-            ));
+            ), false);
             
             // Adicionar um pequeno atraso para evitar sobrecarga da API
             if ($has_more) {
@@ -1263,6 +1594,10 @@ class RWBE_Product_Importer {
             RWBE_Debug_Logger::log('Product fetch aborted: no API token configured');
             return false;
         }
+
+        // A new page means the previous page's prefetched stock is stale. Drop it so
+        // the per-product fallback below can never answer from another page's data.
+        $this->stock_cache = array();
 
         // Definir um timeout adequado para a requisição
         $api_timeout = 180; // Aumentar timeout para 3 minutos para a requisição principal
@@ -1434,7 +1769,8 @@ class RWBE_Product_Importer {
         $product_headers = array(
             'Authorization' => 'Bearer ' . rwbe_get_api_token(),
             'Accept' => 'application/json',
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
+            'Cache-Control' => 'no-cache',
         );
 
         // Processar produtos em lotes, mas agora cada lote é buscado EM PARALELO
@@ -1468,8 +1804,7 @@ class RWBE_Product_Importer {
                 $requests = array();
                 foreach ($pending as $i => $product) {
                     $product_url = add_query_arg(array('product_id' => $product['id']), $product_endpoint);
-                    // Mantém o cache-buster existente (comportamento inalterado)
-                    $product_url = add_query_arg('_nocache', uniqid('', true), $product_url);
+                    $product_url = add_query_arg('_nocache', self::cache_buster(), $product_url);
                     $requests[$i] = array(
                         'url' => $product_url,
                         'headers' => $product_headers,
@@ -2195,24 +2530,32 @@ class RWBE_Product_Importer {
 
         $stock = ($api_stock !== null) ? $api_stock : 0;
         $stock_status = $stock > 0 ? 'instock' : 'outofstock';
-        
+
+        // Every write below is tracked, because update_post_meta() / delete_post_meta()
+        // report whether they actually altered anything. On a twice-daily sync of a
+        // 35k-product catalogue the overwhelming majority of products come back
+        // byte-identical, and the expensive part — finalize_product(), i.e. a full
+        // WooCommerce CRUD save plus a transient and post-cache flush — is pure waste
+        // for those. It now runs only when something really moved, which also covers a
+        // manual edit in wp-admin: correcting it back counts as a change.
+        $changed = false;
+
         // Update product meta
         // Pricing (regular + promo) handled centrally; prices stored excl. VAT
-        $this->apply_product_pricing($product_id, $product_data);
-        update_post_meta($product_id, '_stock', $stock);
-        update_post_meta($product_id, '_stock_status', $stock_status);
+        $changed = $this->apply_product_pricing($product_id, $product_data) || $changed;
+        $changed = $this->update_meta_if_changed($product_id, '_stock', $stock) || $changed;
+        $changed = $this->update_meta_if_changed($product_id, '_stock_status', $stock_status) || $changed;
 
         // Sync supplier status meta during cron as well
         // Link this WooCommerce product to its RWBE API id (used by dashboard stats)
         if (!empty($product_data['id'])) {
-            update_post_meta($product_id, '_rwbe_product_id', sanitize_text_field($product_data['id']));
+            $changed = $this->update_meta_if_changed($product_id, '_rwbe_product_id', sanitize_text_field($product_data['id'])) || $changed;
         }
         $api_status = isset($product_data['status']) ? sanitize_text_field($product_data['status']) : '';
-        update_post_meta($product_id, '_rwbe_status', $api_status);
-        update_post_meta($product_id, '_rwbe_status_updated_at', time());
-        
+        $changed = $this->update_meta_if_changed($product_id, '_rwbe_status', $api_status) || $changed;
+
         // Apply availability (publish/draft + visibility) based on API status
-        $this->apply_product_availability($product_id, $api_status);
+        $changed = $this->apply_product_availability($product_id, $api_status) || $changed;
 
         // Record a minimal summary for the live import log (cron = stock/price only)
         $this->last_product_summary = array(
@@ -2222,8 +2565,15 @@ class RWBE_Product_Importer {
             'cron'  => true,
         );
 
-        // Sync lookup tables (price/stock) and flush caches so changes show immediately
-        $this->finalize_product($product_id);
+        if ($changed) {
+            // Stamped only on a real change, so it reads as "last time the sync moved
+            // this product" instead of costing an UPDATE per product per run. Nothing
+            // reads this value; it is diagnostic only.
+            update_post_meta($product_id, '_rwbe_status_updated_at', time());
+
+            // Sync lookup tables (price/stock) and flush caches so changes show immediately
+            $this->finalize_product($product_id);
+        }
 
         return 'updated';
     }
@@ -2237,14 +2587,18 @@ class RWBE_Product_Importer {
      *
      * @param int   $product_id   Product ID
      * @param array $product_data Product data from API
+     * @return bool True when any stored value actually changed. Lets the cron skip
+     *              the expensive CRUD save for products whose pricing is untouched.
      */
     private function apply_product_pricing($product_id, $product_data) {
+        $changed = false;
+
         // Regular price (excl. VAT). WooCommerce applies tax at checkout.
         $regular_price = isset($product_data['retailerPrice']) ? floatval($product_data['retailerPrice']) : 0;
-        update_post_meta($product_id, '_regular_price', $regular_price);
+        $changed = $this->update_meta_if_changed($product_id, '_regular_price', $regular_price) || $changed;
 
         // Ensure WooCommerce treats this product as taxable (prices stored excl. VAT)
-        update_post_meta($product_id, '_tax_status', 'taxable');
+        $changed = $this->update_meta_if_changed($product_id, '_tax_status', 'taxable') || $changed;
 
         // Promotional price + window
         $sale_price = isset($product_data['grossPromoPricing']) ? floatval($product_data['grossPromoPricing']) : 0;
@@ -2262,9 +2616,9 @@ class RWBE_Product_Importer {
         $to_ts   = ($date_to !== '')   ? strtotime($date_to . ' 23:59:59')   : 0;
 
         if ($has_sale) {
-            update_post_meta($product_id, '_sale_price', $sale_price);
-            update_post_meta($product_id, '_sale_price_dates_from', $from_ts ? $from_ts : '');
-            update_post_meta($product_id, '_sale_price_dates_to', $to_ts ? $to_ts : '');
+            $changed = $this->update_meta_if_changed($product_id, '_sale_price', $sale_price) || $changed;
+            $changed = $this->update_meta_if_changed($product_id, '_sale_price_dates_from', $from_ts ? $from_ts : '') || $changed;
+            $changed = $this->update_meta_if_changed($product_id, '_sale_price_dates_to', $to_ts ? $to_ts : '') || $changed;
 
             // Is the sale active right now? (WooCommerce's wc_scheduled_sales cron
             // will also flip _price when the window opens/closes.)
@@ -2273,13 +2627,13 @@ class RWBE_Product_Importer {
             $not_ended = empty($to_ts)   || $now <= $to_ts;
             $active = $started && $not_ended;
 
-            update_post_meta($product_id, '_price', $active ? $sale_price : $regular_price);
+            $changed = $this->update_meta_if_changed($product_id, '_price', $active ? $sale_price : $regular_price) || $changed;
         } else {
             // No (valid) promo: clear any previous sale data
-            delete_post_meta($product_id, '_sale_price');
-            delete_post_meta($product_id, '_sale_price_dates_from');
-            delete_post_meta($product_id, '_sale_price_dates_to');
-            update_post_meta($product_id, '_price', $regular_price);
+            $changed = delete_post_meta($product_id, '_sale_price') || $changed;
+            $changed = delete_post_meta($product_id, '_sale_price_dates_from') || $changed;
+            $changed = delete_post_meta($product_id, '_sale_price_dates_to') || $changed;
+            $changed = $this->update_meta_if_changed($product_id, '_price', $regular_price) || $changed;
         }
 
         RWBE_Debug_Logger::log('Applied pricing', [
@@ -2287,8 +2641,11 @@ class RWBE_Product_Importer {
             'regular'    => $regular_price,
             'sale'       => $has_sale ? $sale_price : null,
             'date_from'  => $date_from,
-            'date_to'    => $date_to
+            'date_to'    => $date_to,
+            'changed'    => $changed ? 'yes' : 'no'
         ]);
+
+        return $changed;
     }
 
     /**
@@ -2332,28 +2689,51 @@ class RWBE_Product_Importer {
      *
      * @param int    $product_id Product ID
      * @param string $api_status Raw status value from the API
+     * @return bool True when the post status or the visibility terms changed.
      */
     private function apply_product_availability($product_id, $api_status) {
         $api_status = is_string($api_status) ? strtoupper(trim($api_status)) : '';
         $available = ($api_status === '' || $api_status === 'A');
 
         $current_status = get_post_status($product_id);
+        $changed = false;
 
         if ($available) {
             if ($current_status !== 'publish') {
                 wp_update_post(array('ID' => $product_id, 'post_status' => 'publish'));
                 RWBE_Debug_Logger::log('Product (re)published (status available)', ['product_id' => $product_id, 'status' => $api_status]);
+                $changed = true;
             }
-            // Ensure visible in catalog and search
-            if (function_exists('wp_remove_object_terms')) {
-                wp_remove_object_terms($product_id, array('exclude-from-catalog', 'exclude-from-search'), 'product_visibility');
+            // Ensure visible in catalog and search.
+            //
+            // Checked first: wp_remove_object_terms() issues its DELETE whenever the
+            // terms exist in the taxonomy, whether or not this product carries them,
+            // so the unguarded call cost one query per product per run for a catalogue
+            // that is almost entirely visible. has_term() answers from the object-terms
+            // cache WooCommerce has already warmed.
+            if (function_exists('wp_remove_object_terms') && taxonomy_exists('product_visibility')) {
+                $hidden = array();
+                foreach (array('exclude-from-catalog', 'exclude-from-search') as $term) {
+                    if (has_term($term, 'product_visibility', $product_id)) {
+                        $hidden[] = $term;
+                    }
+                }
+                if (!empty($hidden)) {
+                    $removed = wp_remove_object_terms($product_id, $hidden, 'product_visibility');
+                    if ($removed === true) {
+                        $changed = true;
+                    }
+                }
             }
         } else {
             if ($current_status !== 'draft') {
                 wp_update_post(array('ID' => $product_id, 'post_status' => 'draft'));
                 RWBE_Debug_Logger::log('Product unpublished (status not available)', ['product_id' => $product_id, 'status' => $api_status]);
+                $changed = true;
             }
         }
+
+        return $changed;
     }
 
     /**
@@ -3266,6 +3646,7 @@ class RWBE_Product_Importer {
             'Authorization' => 'Bearer ' . rwbe_get_api_token(),
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
+            'Cache-Control' => 'no-cache',
         );
 
         $processed = 0;
@@ -3276,7 +3657,7 @@ class RWBE_Product_Importer {
             $requests = array();
             foreach ($chunk as $i => $row) {
                 $url = add_query_arg(array('product_id' => $row->rwbe_id), $endpoint);
-                $url = add_query_arg('_nocache', uniqid('', true), $url);
+                $url = add_query_arg('_nocache', self::cache_buster(), $url);
                 $requests[$i] = array(
                     'url' => $url,
                     'headers' => $headers,
@@ -3820,12 +4201,14 @@ class RWBE_Product_Importer {
      * Check for interrupted imports and resume them if needed
      */
     public function check_and_resume_interrupted_imports() {
-        RWBE_Debug_Logger::log('Checking for interrupted imports');
-        
+        // This watchdog fires every two minutes, forever. It used to log on entry and
+        // again on exit whether or not there was anything to do, which on a quiet site
+        // is ~2800 log entries a day of pure noise — enough to keep rotating the log
+        // and pushing out the import diagnostics that are actually worth keeping.
+        // Only real decisions are logged now.
         $progress = get_option('rwbe_import_progress');
-        
+
         if (!$progress) {
-            RWBE_Debug_Logger::log('No import progress found, nothing to resume');
             return;
         }
         
@@ -3903,11 +4286,7 @@ class RWBE_Product_Importer {
             return;
         }
         
-        RWBE_Debug_Logger::log('No interrupted import found or import is too recent to be considered interrupted', [
-            'time_diff' => $time_diff,
-            'status' => $status,
-            'last_activity' => isset($progress['last_activity']) ? $progress['last_activity'] : 'Unknown'
-        ]);
+        // Nothing to resume. Deliberately silent — see the note at the top.
     }
     
     /**
@@ -4099,7 +4478,7 @@ class RWBE_Product_Importer {
             'timestamp' => time(),
             'status' => 'paused_by_user',
             'last_activity' => 'Importação pausada pelo utilizador'
-        ));
+        ), false);
         // Consume the request: the loop has now honoured it. The status stays
         // 'paused_by_user' (respected by the cron grace window) until the user
         // resumes or the auto-resume threshold passes.
@@ -4129,9 +4508,13 @@ class RWBE_Product_Importer {
             );
         }
 
+        // See import_products(): counts are recomputed once when the run ends.
+        wp_defer_term_counting(true);
+
         try {
             return $this->run_import_with_resilience($is_cron, $resume);
         } finally {
+            wp_defer_term_counting(false);
             $this->release_import_lock();
         }
     }
@@ -4243,7 +4626,7 @@ class RWBE_Product_Importer {
             'timestamp' => time(),
             'status' => 'in_progress',
             'last_activity' => 'Starting import process'
-        ));
+        ), false);
 
         // Definir um tempo limite para a execução total (4 horas) - apenas como segurança
         $start_time = time();
@@ -4268,7 +4651,7 @@ class RWBE_Product_Importer {
                     'timestamp' => time(),
                     'status' => 'paused_time_limit',
                     'last_activity' => 'Paused due to time limit'
-                ));
+                ), false);
                 
                 // Sair do loop, mas manter o progresso para continuar depois
                 break;
@@ -4287,7 +4670,7 @@ class RWBE_Product_Importer {
                 'timestamp' => time(),
                 'status' => 'in_progress',
                 'last_activity' => 'Fetching products from API (limit: ' . $limit . ', skip: ' . $skip . ')'
-            ));
+            ), false);
             
             RWBE_Debug_Logger::log('Fetching products from API', ['limit' => $limit, 'skip' => $skip]);
             
@@ -4324,7 +4707,7 @@ class RWBE_Product_Importer {
                     'status' => 'retrying_connection',
                     'last_activity' => 'Retry ' . $retry_count . '/' . $max_retries . ': ' . $error_message,
                     'next_retry' => time() + $wait_time
-                ));
+                ), false);
                 
                 if ($retry_count < $max_retries) {
                     // Aguardar com backoff exponencial antes de tentar novamente
@@ -4347,7 +4730,7 @@ class RWBE_Product_Importer {
                     'status' => 'connection_failed',
                     'last_error' => $error_message,
                     'retry_after' => time() + 300 // Tentar novamente após 5 minutos
-                ));
+                ), false);
                 
                 // Notificar admin sobre o erro (opcional)
                 $this->notify_admin('Erro na importação de produtos: ' . $error_message . '. A importação será retomada automaticamente.', 'error');
@@ -4379,7 +4762,14 @@ class RWBE_Product_Importer {
                 'timestamp' => time(),
                 'status' => 'processing_products',
                 'last_activity' => 'Processed ' . count($products) . ' products'
-            ));
+            ), false);
+
+            // The cron path refreshes stock for every product, so fetch the whole
+            // batch's live figures concurrently instead of one blocking request per
+            // product inside the loop below.
+            if ($is_cron) {
+                $this->prefetch_stock($this->collect_api_ids($products));
+            }
 
             $processed_count = 0;
             $stop_requested = false;
@@ -4394,7 +4784,7 @@ class RWBE_Product_Importer {
                         'timestamp' => time(),
                         'status' => 'processing_products',
                         'last_activity' => 'Processed ' . $processed_count . '/' . count($products) . ' products'
-                    ));
+                    ), false);
 
                     // Verificar pedido de paragem do utilizador a meio do lote
                     if ($this->user_requested_stop()) {
@@ -4455,7 +4845,7 @@ class RWBE_Product_Importer {
                 'timestamp' => time(),
                 'status' => $has_more ? 'in_progress' : 'completed',
                 'last_activity' => $has_more ? 'Preparing for next batch' : 'Import completed'
-            ));
+            ), false);
             
             // Adicionar um pequeno atraso para evitar sobrecarga da API
             if ($has_more) {

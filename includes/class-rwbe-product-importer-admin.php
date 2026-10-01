@@ -6,6 +6,12 @@
  */
 class RWBE_Product_Importer_Admin {
 
+    /** Transient holding the dashboard's catalogue counters */
+    const CACHE_COUNTS = 'rwbe_dashboard_counts';
+
+    /** How long those counters stay cached, in seconds */
+    const CACHE_COUNTS_TTL = 120;
+
     /**
      * Initialize the class
      */
@@ -197,23 +203,35 @@ class RWBE_Product_Importer_Admin {
     }
 
     /**
-     * Get import statistics
+     * The four catalogue counters shown on the dashboard, cached briefly.
+     *
+     * Each one is a COUNT over wp_postmeta, which on a 35k-product catalogue means
+     * scanning hundreds of thousands of rows — and they ran uncached on every single
+     * admin page load of the plugin. A short TTL keeps the panel current (the live
+     * import page is where real-time progress is read) at a fraction of the cost.
+     *
+     * @return array
      */
-    private function get_import_statistics() {
+    private function get_catalogue_counts() {
+        $cached = get_transient(self::CACHE_COUNTS);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         global $wpdb;
-        
+
         $stats = array();
-        
+
         // Total de produtos importados (com meta _rwbe_product_id)
         $stats['total_imported'] = $wpdb->get_var(
             "SELECT COUNT(DISTINCT post_id) FROM {$wpdb->postmeta} WHERE meta_key = '_rwbe_product_id'"
         );
-        
+
         // Total de produtos WooCommerce
         $stats['total_products'] = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status IN ('publish', 'draft', 'private')"
         );
-        
+
         // Produtos em stock
         $stats['in_stock'] = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
@@ -221,7 +239,7 @@ class RWBE_Product_Importer_Admin {
             WHERE pm.meta_key = '_stock_status' AND pm.meta_value = 'instock'
             AND p.post_type = 'product' AND p.post_status = 'publish'"
         );
-        
+
         // Produtos sem stock
         $stats['out_of_stock'] = $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->postmeta} pm
@@ -229,7 +247,18 @@ class RWBE_Product_Importer_Admin {
             WHERE pm.meta_key = '_stock_status' AND pm.meta_value = 'outofstock'
             AND p.post_type = 'product' AND p.post_status = 'publish'"
         );
-        
+
+        set_transient(self::CACHE_COUNTS, $stats, self::CACHE_COUNTS_TTL);
+
+        return $stats;
+    }
+
+    /**
+     * Get import statistics
+     */
+    private function get_import_statistics() {
+        $stats = $this->get_catalogue_counts();
+
         // Última importação
         $last_import = get_option('rwbe_last_import_time');
         $stats['last_import'] = $last_import ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $last_import) : __('Nunca', 'rwbe-product-importer');
@@ -854,7 +883,7 @@ class RWBE_Product_Importer_Admin {
                     'error_messages' => array()
                 )
             );
-            update_option('rwbe_import_progress', $progress);
+            update_option('rwbe_import_progress', $progress, false);
         }
         
         // Initialize the importer

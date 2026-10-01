@@ -7,6 +7,44 @@
 class RWBE_Product_Importer_Live_Log {
 
     /**
+     * How often the recent-product log is persisted, in seconds.
+     *
+     * The dashboard polls every 3s, so persisting at most every 2s keeps it just
+     * as current while turning one read + one write per product (35k of each on a
+     * full catalogue) into a handful per second.
+     */
+    const FLUSH_INTERVAL = 2;
+
+    /**
+     * In-memory copy of the recent-product log. Read from the option once per
+     * request, then kept here.
+     *
+     * @var array|null
+     */
+    private static $logs_cache = null;
+
+    /**
+     * Whether the cache holds entries that are not in the option yet.
+     *
+     * @var bool
+     */
+    private static $logs_dirty = false;
+
+    /**
+     * Timestamp of the last persist.
+     *
+     * @var int
+     */
+    private static $last_flush = 0;
+
+    /**
+     * Whether the end-of-request flush has been registered.
+     *
+     * @var bool
+     */
+    private static $shutdown_hooked = false;
+
+    /**
      * Initialize the class
      */
     public function init() {
@@ -325,7 +363,7 @@ class RWBE_Product_Importer_Live_Log {
             'last_activity' => 'Starting new import'
         );
         
-        update_option('rwbe_import_progress', $initial_progress);
+        update_option('rwbe_import_progress', $initial_progress, false);
         
         // Inicializar o importador
         $importer = new RWBE_Product_Importer();
@@ -377,7 +415,7 @@ class RWBE_Product_Importer_Live_Log {
         $progress['last_activity'] = 'Import paused by user';
         $progress['timestamp'] = time();
 
-        update_option('rwbe_import_progress', $progress);
+        update_option('rwbe_import_progress', $progress, false);
 
         wp_send_json_success(array(
             'message' => 'Import paused',
@@ -407,7 +445,7 @@ class RWBE_Product_Importer_Live_Log {
         $progress['last_activity'] = 'Resuming import';
         $progress['timestamp'] = time();
         
-        update_option('rwbe_import_progress', $progress);
+        update_option('rwbe_import_progress', $progress, false);
         
         // Schedule the import to run immediately via WP Cron
         wp_schedule_single_event(time(), 'rwbe_product_import_cron');
@@ -432,7 +470,11 @@ class RWBE_Product_Importer_Live_Log {
             return;
         }
 
-        $recent_logs = get_option('rwbe_recent_product_logs', array());
+        if (self::$logs_cache === null) {
+            $stored = get_option('rwbe_recent_product_logs', array());
+            self::$logs_cache = is_array($stored) ? $stored : array();
+        }
+        $recent_logs = self::$logs_cache;
 
         // Add new log entry
         $log_entry = array(
@@ -457,16 +499,46 @@ class RWBE_Product_Importer_Live_Log {
         if (count($recent_logs) > 100) {
             $recent_logs = array_slice($recent_logs, 0, 100);
         }
-        
-        // Update option (autoload disabled — this can hold up to 100 entries and
-        // must not be loaded on every frontend request)
-        update_option('rwbe_recent_product_logs', $recent_logs, false);
+
+        self::$logs_cache = $recent_logs;
+        self::$logs_dirty = true;
+
+        // Whatever is still unsaved when the request ends (or dies) must reach the
+        // option, or the dashboard would lose the tail of the run.
+        if (!self::$shutdown_hooked) {
+            self::$shutdown_hooked = true;
+            register_shutdown_function(array(__CLASS__, 'flush_product_logs'));
+        }
+
+        if ((time() - self::$last_flush) >= self::FLUSH_INTERVAL) {
+            self::flush_product_logs();
+        }
     }
-    
+
+    /**
+     * Persist the buffered recent-product log.
+     *
+     * Autoload stays disabled: this can hold up to 100 entries and must not be
+     * loaded on every frontend request.
+     */
+    public static function flush_product_logs() {
+        if (!self::$logs_dirty || self::$logs_cache === null) {
+            return;
+        }
+        update_option('rwbe_recent_product_logs', self::$logs_cache, false);
+        self::$logs_dirty = false;
+        self::$last_flush = time();
+    }
+
     /**
      * Clear recent logs
      */
     public static function clear_logs() {
+        // Drop the buffer too, otherwise a later entry in this same request would
+        // write the cleared list straight back. (The importer clears the log and
+        // then runs the import inside one request.)
+        self::$logs_cache = array();
+        self::$logs_dirty = false;
         delete_option('rwbe_recent_product_logs');
     }
 }
