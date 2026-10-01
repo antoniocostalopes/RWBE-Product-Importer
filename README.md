@@ -303,6 +303,7 @@ Criados e preenchidos **automaticamente** pelo plugin:
 ```
 rwbe-product-importer/
 ├── rwbe-product-importer.php                       # Bootstrap: constantes, token, i18n, hooks, ativação
+├── uninstall.php                                   # Remove tabela, opções, agendamentos e ficheiros gerados
 ├── includes/
 │   ├── class-rwbe-product-importer.php             # Motor de importação (produtos, imagens, fitment)
 │   ├── class-rwbe-product-importer-admin.php       # Backoffice e endpoints AJAX
@@ -318,15 +319,45 @@ rwbe-product-importer/
 │   ├── css/                                        # admin, live-log, search, vehicle-filter
 │   └── js/                                         # admin, live-log, search, vehicle-filter, vehicle-filter-block
 ├── languages/
-│   └── rwbe-product-importer.pot                   # Modelo de tradução (223 strings)
-├── tools/                                          # Scripts de diagnóstico da API (CLI) — ver tools/README.md
+│   └── rwbe-product-importer.pot                   # Modelo de tradução
+├── tests/
+│   ├── SuiteRunnerTest.php                         # Corre cada suite no seu próprio processo
+│   ├── helpers.php                                 # Constantes partilhadas pelas suites
+│   └── suites/                                     # Oito suites, também executáveis à mão
+├── tools/                                          # Scripts de diagnóstico da API (só CLI) — ver tools/README.md
+├── bin/
+│   └── lint.php                                    # php -l sobre o plugin inteiro
+├── .github/workflows/ci.yml                        # Lint 7.4→8.4, coding standards e testes
+├── composer.json                                   # Dependências de desenvolvimento e scripts
+├── phpcs.xml.dist                                  # WordPress Coding Standards + desvios documentados
+├── phpunit.xml.dist
+├── .editorconfig
 ├── CHANGELOG.md
 ├── LICENSE                                         # GPL v2
 ├── README.md
 └── .gitignore
 ```
 
-A pasta `tools/` não é usada em execução: pode ser removida numa instalação de produção.
+As pastas `tools/`, `tests/`, `bin/` e `.github/` não são usadas em execução e podem ser removidas numa instalação de produção, tal como `composer.json` e os ficheiros `*.dist`. Os scripts em `tools/` recusam qualquer coisa que não seja a linha de comandos, por isso não respondem a pedidos HTTP mesmo que fiquem lá.
+
+### Desenvolvimento
+
+As dependências são só de desenvolvimento; o plugin não precisa de `vendor/` para correr.
+
+```bash
+composer install
+composer run check      # lint + coding standards + testes (o mesmo que o CI corre)
+composer run lint       # php -l em todos os ficheiros
+composer run cs         # relatório do PHP_CodeSniffer
+composer run cs:fix     # corrige o que é mecanicamente corrigível
+composer run test       # PHPUnit
+```
+
+Os testes não precisam de uma instalação do WordPress: cada suite declara os stubs de que precisa e corre no seu próprio processo. Também se executam à mão, uma a uma:
+
+```bash
+php tests/suites/change-detection.php
+```
 
 ---
 
@@ -359,7 +390,7 @@ Registo completo em [CHANGELOG.md](CHANGELOG.md).
 
 | Versão | Data | Destaque |
 |---|---|---|
-| **1.2.4** | 2026-10-01 | Desempenho: stock do cron em paralelo, catálogo já não é regravado sem motivo, filtro da loja por JOIN; limpeza de placeholders deixa de poder partir referências |
+| **1.2.4** | 2026-10-01 | Desempenho (stock do cron em paralelo, catálogo já não é regravado sem motivo, filtro da loja por JOIN), segurança (AJAX com verificação de permissões, `tools/` só CLI, `uninstall.php`), WordPress Coding Standards, testes e CI |
 | **1.2.3** | 2026-09-09 | Segurança: token da API deixou de existir em código — é introduzido manualmente |
 | **1.2.2** | 2026-09-08 | Limpeza de placeholders corre no servidor e sobrevive ao fecho da página |
 | **1.2.0** | 2026-09-04 | Tabela `wp_rwbe_fitment` com as combinações reais de veículo |
