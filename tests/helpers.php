@@ -30,6 +30,13 @@ if ( ! defined( 'RWBE_TEST_PLUGIN_DIR' ) ) {
  * @return string Absolute path, or '' when not available.
  */
 function rwbe_test_placeholder_file() {
+	// Lets the "fixture missing" path be exercised on a machine that has the file.
+	// Without it, that branch only ever ran in CI — which is how a call to a
+	// non-existent PHPUnit method shipped green from a developer's machine.
+	if ( getenv( 'RWBE_TEST_NO_PLACEHOLDER' ) ) {
+		return '';
+	}
+
 	$candidates = array(
 		__DIR__ . '/fixtures/placeholder.png',
 		// This development site, where the plugin has already imported it.

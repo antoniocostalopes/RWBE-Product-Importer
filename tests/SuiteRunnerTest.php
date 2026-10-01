@@ -84,9 +84,13 @@ final class SuiteRunnerTest extends TestCase {
 			sprintf( "Suite %s exited 0 but printed no verdict.\n\n%s", basename( $file ), $stdout )
 		);
 
-		// Surface a skipped group so a green run never hides missing coverage.
+		// Surface a skipped group so a green run never hides missing coverage. This runs
+		// after the assertions above, so the suite's verdict has already been checked;
+		// marking it incomplete reports the gap without failing the build.
 		if ( strpos( $stdout . $stderr, 'SKIPPED' ) !== false ) {
-			$this->addWarning( 'Suite ' . basename( $file ) . ' skipped a group: ' . trim( $stderr ) );
+			$this->markTestIncomplete(
+				'Suite ' . basename( $file ) . ' skipped a group: ' . trim( $stderr )
+			);
 		}
 	}
 }
