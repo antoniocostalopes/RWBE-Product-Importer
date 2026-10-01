@@ -24,7 +24,7 @@ Detalhe de utilização e configuração: [README.md](README.md).
 
 ## [1.2.4] — 2026-10-01
 
-Desempenho, mais duas correções de correção na limpeza de imagens placeholder (uma delas podia fazer produtos perderem a imagem). Nenhuma alteração ao que é importado, ao que é mostrado, nem às taxonomias.
+Desempenho, segurança e três correções de correção — uma podia fazer produtos perderem a imagem, outra mantinha a limpeza de placeholders permanentemente bloqueada. Nenhuma alteração ao que é importado, ao que é mostrado, nem às taxonomias.
 
 ### Corrigido — custo no frontend
 
@@ -55,12 +55,30 @@ Medido no catálogo real: 195 179 anexos, dos quais **73 218 são cópias do pla
 
 Em conjunto, o custo em SQL de uma passagem completa desce de ~14,6 min para ~2,8 min. As 73 mil chamadas a `wp_delete_attachment()` mantêm-se — é trabalho real.
 
+### Segurança
+
+- **Endpoints AJAX sem verificação de permissões.** `rwbe_get_import_logs`, `rwbe_start_import`, `rwbe_stop_import` e `rwbe_resume_import` validavam o nonce e mais nada. Um nonce prova de que página veio o pedido, nunca que quem o faz tem autorização — e estes arrancam e param uma importação de catálogo completo. Estão registados sem variante `nopriv` e o nonce só chega a uma página que já exige `manage_options`, pelo que não era diretamente explorável, mas é a verificação de capacidade que impõe isso. Passam por `authorize_ajax()`, que verifica `manage_options` primeiro (um chamador não autorizado não fica a saber se o nonce era válido) e só depois o nonce, agora também sanitizado.
+- **Scripts de diagnóstico acessíveis por HTTP.** Os nove ficheiros em `tools/` não tinham guarda nenhuma e vivem num diretório servido pelo servidor web — endpoints não autenticados que falam com a API do fornecedor. Passam a recusar tudo o que não seja `PHP_SAPI === 'cli'`.
+- **Sete ficheiros em `includes/` sem guarda de acesso direto.** Acrescentada no mesmo estilo dos outros três. Por HTTP todos devolvem corpo vazio sem executar nada.
+- **`uninstall.php` não existia.** Apagar o plugin deixava para trás a tabela `wp_rwbe_fitment`, catorze opções (incluindo o API token), os transients, cinco eventos agendados e dois diretórios em `uploads/`. As opções são apanhadas pelo prefixo do próprio plugin, para que uma opção acrescentada mais tarde não fique esquecida, e cada site de uma rede é tratado em separado. Não toca em produtos, anexos nem nas taxonomias `pa_*`: isso é conteúdo do site. O apagamento recursivo é contido — o caminho tem de resolver dentro da base de `uploads`, estar diretamente abaixo dela e ter o nome esperado — e tem teste que verifica que media real sobrevive, que um nome com travessia é recusado e que um symlink para fora da árvore não é seguido.
+
+### Corrigido — importação presa sem token
+
+- **O watchdog ressuscitava indefinidamente uma importação que não podia funcionar.** `import_products()` verifica o API token antes de tudo; `import_products_with_resilience()` — o caminho que o cron e o watchdog usam — não verificava. Como a progressão é escrita como `in_progress` com timestamp fresco *antes* de a API ser chamada, num site sem token o watchdog retomava a mesma importação condenada de dois em dois minutos, cada tentativa renovando o timestamp. Efeito colateral: a limpeza de placeholders, que cede sempre que uma importação parece ativa, nunca conseguia arrancar. Ambos os caminhos verificam agora, e limpam a progressão presa em vez de a repetirem para sempre.
+
 ### Alterado
 
 - **Filtro da loja por JOIN em vez de `post__in`.** `rwbe_make` + `rwbe_model` (+ `rwbe_year`) ligam a tabela de fitment à query por `INNER JOIN` + `DISTINCT` (via `posts_clauses`, só na query marcada), em vez de resolver até 20 000 ids e passá-los em `post__in`. Como consequência **o filtro `rwbe_fitment_filter_max_ids` deixou de existir**: já não há truncatura, pelo que o caminho da combinação exata nunca volta a cair na taxonomia — antes alargava silenciosamente os resultados precisamente nas marcas com mais produtos.
 - **`RWBE_Fitment::get_model_map()` e `get_year_map()` aceitam filtros.** Os menus pediam o mapa completo (varrimento da tabela inteira mais expansão de todos os intervalos de anos em PHP) para depois usar uma única chave. O construtor do mapa JSON estático continua a chamá-los sem argumentos.
 - **Estatísticas do painel em cache por 2 minutos.** Os quatro `COUNT` sobre `wp_postmeta` corriam sem cache em cada carregamento das páginas do plugin. O progresso em tempo real continua a ser lido na página de importação.
 - **`_rwbe_status_updated_at`** passa a ser gravado só quando a sincronização altera algo, em vez de em cada produto em cada corrida. Nada lê este valor; é apenas diagnóstico.
+- **Identificação do placeholder passa a ser filtrável.** `rwbe_placeholder_md5` e `rwbe_placeholder_size` permitem adaptar a deteção sem editar o plugin. O hash descreve um ficheiro que pertence ao fornecedor: no dia em que a RWBE reexportar aquele PNG, sem isto cada site precisaria de uma versão nova antes de voltar a desduplicar placeholders.
+- **Código conforme as WordPress Coding Standards.** De 11 990 erros e 760 avisos para zero. A indentação passou a tabulações, seguindo o WordPress. Os desvios que ficam estão documentados um a um em `phpcs.xml.dist`, com a razão ao lado — nenhum esconde um problema por resolver. Pelo caminho a norma revelou defeitos reais, todos corrigidos: um `esc_html__()` sem text domain (a etiqueta do agendamento nunca seria traduzida), 96 `_e()` a imprimir traduções sem escapar, nove sítios no backoffice a emitir valores crus, treze `in_array()` sem comparação estrita, dois `==` que deviam ser `===`, `date()` onde o fuso horário não pode contar, e duas variáveis de escopo de ficheiro a vazar para o namespace global.
+
+### Desenvolvimento
+
+- **Ferramentas e CI, que não existiam.** `composer.json` com dependências só de desenvolvimento e os scripts `lint`, `cs`, `cs:fix`, `test` e `check`; `phpcs.xml.dist`, `phpunit.xml.dist`, `.editorconfig` e `bin/lint.php`. O GitHub Actions valida a sintaxe em PHP 7.4 a 8.4 — o mínimo que o cabeçalho do plugin promete — e corre as normas e os testes em 8.3.
+- **Oito suites de teste** em `tests/suites/`, uma por processo, sem precisar de uma instalação do WordPress: deteção de alterações, buffer do logger, limitação do log em tempo real, SQL de fitment e injeção de cláusulas na query da loja, SQL da limpeza, caminho de aborto da limpeza, rotina de desinstalação e a guarda do token.
 
 ---
 
