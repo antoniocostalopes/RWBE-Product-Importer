@@ -7,10 +7,10 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# WordPress upstream uses tabs; this plugin is four-space indented throughout and
-# phpcs.xml.dist excludes the tab sniff to match. Keep editors in step with that.
+# Tabs, following WordPress upstream and phpcs.xml.dist. indent_size only tells the
+# editor how wide to render a tab; it does not turn it into spaces.
 [*.{php,js,css}]
-indent_style = space
+indent_style = tab
 indent_size = 4
 
 [*.{json,yml,yaml,xml,dist}]

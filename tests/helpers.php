@@ -10,8 +10,8 @@
  * @package RWBE_Product_Importer
  */
 
-if (!defined('RWBE_TEST_PLUGIN_DIR')) {
-    define('RWBE_TEST_PLUGIN_DIR', dirname(__DIR__));
+if ( ! defined( 'RWBE_TEST_PLUGIN_DIR' ) ) {
+	define( 'RWBE_TEST_PLUGIN_DIR', dirname( __DIR__ ) );
 }
 
 /**
@@ -30,20 +30,20 @@ if (!defined('RWBE_TEST_PLUGIN_DIR')) {
  * @return string Absolute path, or '' when not available.
  */
 function rwbe_test_placeholder_file() {
-    $candidates = array(
-        __DIR__ . '/fixtures/placeholder.png',
-        // This development site, where the plugin has already imported it.
-        dirname(RWBE_TEST_PLUGIN_DIR, 2) . '/uploads/2026/06/1.png',
-    );
+	$candidates = array(
+		__DIR__ . '/fixtures/placeholder.png',
+		// This development site, where the plugin has already imported it.
+		dirname( RWBE_TEST_PLUGIN_DIR, 2 ) . '/uploads/2026/06/1.png',
+	);
 
-    foreach ($candidates as $path) {
-        if (is_readable($path)
-            && filesize($path) === 11137
-            && md5_file($path) === '05aefa99c9870be09a77d9dd68b4c55a'
-        ) {
-            return $path;
-        }
-    }
+	foreach ( $candidates as $path ) {
+		if ( is_readable( $path )
+			&& filesize( $path ) === 11137
+			&& md5_file( $path ) === '05aefa99c9870be09a77d9dd68b4c55a'
+		) {
+			return $path;
+		}
+	}
 
-    return '';
+	return '';
 }
