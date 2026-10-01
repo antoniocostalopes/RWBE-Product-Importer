@@ -43,11 +43,23 @@ $GLOBALS['wpdb'] = new WPDB_Stub();
 
 function sanitize_title( $s ) {
 	return strtolower( preg_replace( '/[^a-z0-9]+/i', '-', trim( (string) $s ) ) ); }
+if ( ! isset( $GLOBALS['filters'] ) ) {
+	$GLOBALS['filters'] = [];
+}
+
+/**
+ * Stubbed filter dispatch. WordPress with nothing hooked returns the value it was
+ * given, and a stub that returns false instead silently changes what the code under
+ * test computes.
+ */
+function apply_filters( $hook, $value = null ) {
+	return $GLOBALS['filters'][ $hook ] ?? $value;
+}
+
 foreach ( [
 	'add_action',
 	'add_filter',
 	'remove_filter',
-	'apply_filters',
 	'add_shortcode',
 	'get_option',
 	'update_option',

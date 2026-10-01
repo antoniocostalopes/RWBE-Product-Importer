@@ -183,7 +183,7 @@ class RWBE_Product_Importer {
              INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_rwbe_content_hash'
              WHERE p.post_type = 'attachment' AND m.meta_value = %s
              ORDER BY p.ID ASC LIMIT 1",
-				self::PLACEHOLDER_MD5
+				self::placeholder_md5()
 			)
 		);
 		if ( $existing ) {
@@ -214,10 +214,47 @@ class RWBE_Product_Importer {
 		}
 
 		update_post_meta( $new_id, '_rwbe_placeholder', 1 );
-		update_post_meta( $new_id, '_rwbe_content_hash', self::PLACEHOLDER_MD5 );
+		update_post_meta( $new_id, '_rwbe_content_hash', self::placeholder_md5() );
 		update_option( self::PLACEHOLDER_OPTION, $new_id, false );
 		RWBE_Debug_Logger::log( 'Created canonical placeholder attachment', [ 'attachment_id' => $new_id ] );
 		return $new_id;
+	}
+
+	/**
+	 * Content hash identifying the supplier's "no image" placeholder.
+	 *
+	 * Filterable because this is the one constant in the plugin that is owned by
+	 * somebody else: the day RWBE re-exports that PNG the hash changes, and without a
+	 * filter every site would need a plugin release before its placeholders could be
+	 * de-duplicated again. It is also what lets the test suite point the detection at
+	 * a generated fixture instead of shipping the supplier's logo in this repository.
+	 *
+	 * @return string
+	 */
+	private static function placeholder_md5() {
+		/**
+		 * Filter the md5 that identifies the supplier placeholder image.
+		 *
+		 * @param string $md5 Default hash.
+		 */
+		return (string) apply_filters( 'rwbe_placeholder_md5', self::PLACEHOLDER_MD5 );
+	}
+
+	/**
+	 * Byte size of the supplier placeholder, used as a cheap pre-filter before hashing.
+	 *
+	 * Filterable for the same reason as placeholder_md5(), and must be kept in step
+	 * with it: a size that does not match the hash means nothing is ever detected.
+	 *
+	 * @return int
+	 */
+	private static function placeholder_size() {
+		/**
+		 * Filter the byte size that identifies the supplier placeholder image.
+		 *
+		 * @param int $size Default size in bytes.
+		 */
+		return (int) apply_filters( 'rwbe_placeholder_size', self::PLACEHOLDER_SIZE );
 	}
 
 	/**
@@ -232,10 +269,10 @@ class RWBE_Product_Importer {
 		if ( ! $file || ! file_exists( $file ) ) {
 			return false;
 		}
-		if ( filesize( $file ) !== self::PLACEHOLDER_SIZE ) {
+		if ( filesize( $file ) !== self::placeholder_size() ) {
 			return false;
 		}
-		return md5_file( $file ) === self::PLACEHOLDER_MD5;
+		return md5_file( $file ) === self::placeholder_md5();
 	}
 
 	/**
@@ -333,7 +370,7 @@ class RWBE_Product_Importer {
 			if ( ! $canonical ) {
 				$canonical = $aid;
 				update_post_meta( $aid, '_rwbe_placeholder', 1 );
-				update_post_meta( $aid, '_rwbe_content_hash', self::PLACEHOLDER_MD5 );
+				update_post_meta( $aid, '_rwbe_content_hash', self::placeholder_md5() );
 				update_option( self::PLACEHOLDER_OPTION, $aid, false );
 				RWBE_Debug_Logger::log( 'Promoted existing attachment to canonical placeholder', [ 'attachment_id' => $aid ] );
 				continue;
@@ -437,7 +474,7 @@ class RWBE_Product_Importer {
 	 * @return string
 	 */
 	private function placeholder_metadata_needle() {
-		return '%s:8:"filesize";i:' . (int) self::PLACEHOLDER_SIZE . ';%';
+		return '%s:8:"filesize";i:' . self::placeholder_size() . ';%';
 	}
 
 	/**
@@ -3582,7 +3619,7 @@ class RWBE_Product_Importer {
 
 			// Placeholder detection (see set_product_image): reuse the single shared
 			// attachment instead of importing the "no image" PNG per product.
-			if ( md5_file( $temp_file ) === self::PLACEHOLDER_MD5 ) {
+			if ( md5_file( $temp_file ) === self::placeholder_md5() ) {
 				$placeholder_id = $this->get_or_create_placeholder_attachment( $temp_file, 'rwb-placeholder.png' );
 				if ( $placeholder_id ) {
 					$attachment_ids[]               = $placeholder_id;
@@ -3744,7 +3781,7 @@ class RWBE_Product_Importer {
 		// Placeholder detection: the API returns the same "no image" PNG under a
 		// per-product URL, so it can only be recognised by its bytes. Reuse the one
 		// shared attachment instead of importing a new copy per product.
-		if ( md5_file( $temp_file ) === self::PLACEHOLDER_MD5 ) {
+		if ( md5_file( $temp_file ) === self::placeholder_md5() ) {
 			$placeholder_id = $this->get_or_create_placeholder_attachment( $temp_file, 'rwb-placeholder.png' );
 			if ( $placeholder_id ) {
 				set_post_thumbnail( $product_id, $placeholder_id );

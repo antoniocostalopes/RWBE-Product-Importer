@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Only main on push. A branch with an open pull request is already covered by the
+  # pull_request trigger, and listening to both ran the whole matrix twice for every
+  # commit on a branch.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

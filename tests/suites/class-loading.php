@@ -12,11 +12,23 @@ define( 'HOUR_IN_SECONDS', 3600 );
 define( 'MINUTE_IN_SECONDS', 60 );
 define( 'DAY_IN_SECONDS', 86400 );
 
+if ( ! isset( $GLOBALS['filters'] ) ) {
+	$GLOBALS['filters'] = [];
+}
+
+/**
+ * Stubbed filter dispatch. WordPress with nothing hooked returns the value it was
+ * given, and a stub that returns false instead silently changes what the code under
+ * test computes.
+ */
+function apply_filters( $hook, $value = null ) {
+	return $GLOBALS['filters'][ $hook ] ?? $value;
+}
+
 $fns = [
 	'add_action',
 	'add_filter',
 	'remove_filter',
-	'apply_filters',
 	'add_shortcode',
 	'do_action',
 	'get_option',
