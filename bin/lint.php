@@ -12,55 +12,55 @@
  */
 
 // Command line only; this never needs to answer an HTTP request.
-if (PHP_SAPI !== 'cli') {
-    http_response_code(403);
-    exit('This script can only be run from the command line.');
+if ( PHP_SAPI !== 'cli' ) {
+	http_response_code( 403 );
+	exit( 'This script can only be run from the command line.' );
 }
 
-$root = dirname(__DIR__);
+$root = dirname( __DIR__ );
 
 $skip = array(
-    $root . DIRECTORY_SEPARATOR . 'vendor',
-    $root . DIRECTORY_SEPARATOR . 'node_modules',
+	$root . DIRECTORY_SEPARATOR . 'vendor',
+	$root . DIRECTORY_SEPARATOR . 'node_modules',
 );
 
 $iterator = new RecursiveIteratorIterator(
-    new RecursiveCallbackFilterIterator(
-        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
-        static function (SplFileInfo $file) use ($skip) {
-            foreach ($skip as $dir) {
-                if (strpos($file->getPathname(), $dir) === 0) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    )
+	new RecursiveCallbackFilterIterator(
+		new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ),
+		static function ( SplFileInfo $file ) use ( $skip ) {
+			foreach ( $skip as $dir ) {
+				if ( strpos( $file->getPathname(), $dir ) === 0 ) {
+					return false;
+				}
+			}
+			return true;
+		}
+	)
 );
 
 $checked = 0;
 $failed  = array();
 
-foreach ($iterator as $file) {
-    if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
-        continue;
-    }
+foreach ( $iterator as $file ) {
+	if ( ! $file->isFile() || strtolower( $file->getExtension() ) !== 'php' ) {
+		continue;
+	}
 
-    $output = array();
-    $code   = 0;
-    exec(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($file->getPathname()) . ' 2>&1', $output, $code);
+	$output = array();
+	$code   = 0;
+	exec( escapeshellarg( PHP_BINARY ) . ' -l ' . escapeshellarg( $file->getPathname() ) . ' 2>&1', $output, $code );
 
-    ++$checked;
-    if ($code !== 0) {
-        $failed[] = implode(PHP_EOL, $output);
-    }
+	++$checked;
+	if ( $code !== 0 ) {
+		$failed[] = implode( PHP_EOL, $output );
+	}
 }
 
-if ($failed !== array()) {
-    fwrite(STDERR, implode(PHP_EOL, $failed) . PHP_EOL);
-    fwrite(STDERR, sprintf('%d of %d files have syntax errors.%s', count($failed), $checked, PHP_EOL));
-    exit(1);
+if ( $failed !== array() ) {
+	fwrite( STDERR, implode( PHP_EOL, $failed ) . PHP_EOL );
+	fwrite( STDERR, sprintf( '%d of %d files have syntax errors.%s', count( $failed ), $checked, PHP_EOL ) );
+	exit( 1 );
 }
 
-printf('No syntax errors in %d files.%s', $checked, PHP_EOL);
-exit(0);
+printf( 'No syntax errors in %d files.%s', $checked, PHP_EOL );
+exit( 0 );

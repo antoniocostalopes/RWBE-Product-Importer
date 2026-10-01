@@ -17,11 +17,12 @@
  * an import picks the catalogue back up.
  *
  * @since 1.2.4
+ * @package RWBE_Product_Importer
  */
 
 // Only ever reached through WordPress's uninstall mechanism.
-if (!defined('WP_UNINSTALL_PLUGIN')) {
-    die;
+if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+	die;
 }
 
 /**
@@ -30,46 +31,46 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
  * @return void
  */
 function rwbe_uninstall_current_site() {
-    global $wpdb;
+	global $wpdb;
 
-    // Options are matched by the plugin's own prefix rather than listed one by one,
-    // so an option added later is not left behind by an uninstall routine nobody
-    // remembered to update.
-    $like = $wpdb->esc_like('rwbe_') . '%';
-    $wpdb->query(
-        $wpdb->prepare(
-            "DELETE FROM {$wpdb->options}
+	// Options are matched by the plugin's own prefix rather than listed one by one,
+	// so an option added later is not left behind by an uninstall routine nobody
+	// remembered to update.
+	$like = $wpdb->esc_like( 'rwbe_' ) . '%';
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options}
              WHERE option_name LIKE %s
                 OR option_name LIKE %s
                 OR option_name LIKE %s",
-            $like,
-            '_transient_' . $like,
-            '_transient_timeout_' . $like
-        )
-    );
+			$like,
+			'_transient_' . $like,
+			'_transient_timeout_' . $like
+		)
+	);
 
-    // The fitment table is per-site, like the prefix it is built from.
-    $table = $wpdb->prefix . 'rwbe_fitment';
-    $wpdb->query("DROP TABLE IF EXISTS `{$table}`");
+	// The fitment table is per-site, like the prefix it is built from.
+	$table = $wpdb->prefix . 'rwbe_fitment';
+	$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 
-    // Scheduled work must go, or WordPress keeps firing hooks nothing listens to.
-    $hooks = array(
-        'rwbe_product_import_cron',
-        'rwbe_check_interrupted_imports',
-        'rwbe_ph_cleanup_cron',
-        'rwbe_fitment_backfill',
-        'rwbe_vehicle_map_rebuild',
-    );
-    foreach ($hooks as $hook) {
-        wp_clear_scheduled_hook($hook);
-    }
+	// Scheduled work must go, or WordPress keeps firing hooks nothing listens to.
+	$hooks = array(
+		'rwbe_product_import_cron',
+		'rwbe_check_interrupted_imports',
+		'rwbe_ph_cleanup_cron',
+		'rwbe_fitment_backfill',
+		'rwbe_vehicle_map_rebuild',
+	);
+	foreach ( $hooks as $hook ) {
+		wp_clear_scheduled_hook( $hook );
+	}
 
-    // Generated files: the debug log and the static vehicle map. Both are caches the
-    // plugin rebuilds, so there is nothing here worth keeping.
-    rwbe_uninstall_delete_upload_dir('rwbe-logs');
-    rwbe_uninstall_delete_upload_dir('rwbe-vehicle-map');
+	// Generated files: the debug log and the static vehicle map. Both are caches the
+	// plugin rebuilds, so there is nothing here worth keeping.
+	rwbe_uninstall_delete_upload_dir( 'rwbe-logs' );
+	rwbe_uninstall_delete_upload_dir( 'rwbe-vehicle-map' );
 
-    wp_cache_flush();
+	wp_cache_flush();
 }
 
 /**
@@ -84,26 +85,26 @@ function rwbe_uninstall_current_site() {
  * @param string $name Directory name directly under the uploads base.
  * @return void
  */
-function rwbe_uninstall_delete_upload_dir($name) {
-    $uploads = wp_get_upload_dir();
-    if (!empty($uploads['error']) || empty($uploads['basedir'])) {
-        return;
-    }
+function rwbe_uninstall_delete_upload_dir( $name ) {
+	$uploads = wp_get_upload_dir();
+	if ( ! empty( $uploads['error'] ) || empty( $uploads['basedir'] ) ) {
+		return;
+	}
 
-    $base = realpath($uploads['basedir']);
-    $dir  = realpath(trailingslashit($uploads['basedir']) . $name);
+	$base = realpath( $uploads['basedir'] );
+	$dir  = realpath( trailingslashit( $uploads['basedir'] ) . $name );
 
-    if ($base === false || $dir === false) {
-        return;
-    }
+	if ( $base === false || $dir === false ) {
+		return;
+	}
 
-    // Containment: $dir must sit directly under the uploads base and carry the name
-    // we expect. Anything else is not ours to delete.
-    if ($dir === $base || dirname($dir) !== $base || basename($dir) !== $name) {
-        return;
-    }
+	// Containment: $dir must sit directly under the uploads base and carry the name
+	// we expect. Anything else is not ours to delete.
+	if ( $dir === $base || dirname( $dir ) !== $base || basename( $dir ) !== $name ) {
+		return;
+	}
 
-    rwbe_uninstall_rmdir($dir);
+	rwbe_uninstall_rmdir( $dir );
 }
 
 /**
@@ -112,42 +113,49 @@ function rwbe_uninstall_delete_upload_dir($name) {
  * @param string $dir Absolute path, already validated by the caller.
  * @return void
  */
-function rwbe_uninstall_rmdir($dir) {
-    if (!is_dir($dir)) {
-        return;
-    }
+function rwbe_uninstall_rmdir( $dir ) {
+	if ( ! is_dir( $dir ) ) {
+		return;
+	}
 
-    $items = scandir($dir);
-    if ($items === false) {
-        return;
-    }
+	$items = scandir( $dir );
+	if ( $items === false ) {
+		return;
+	}
 
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-        $path = $dir . DIRECTORY_SEPARATOR . $item;
-        // Never follow a symlink out of the directory being removed.
-        if (is_link($path)) {
-            @unlink($path);
-        } elseif (is_dir($path)) {
-            rwbe_uninstall_rmdir($path);
-        } else {
-            @unlink($path);
-        }
-    }
+	foreach ( $items as $item ) {
+		if ( $item === '.' || $item === '..' ) {
+			continue;
+		}
+		$path = $dir . DIRECTORY_SEPARATOR . $item;
+		// Never follow a symlink out of the directory being removed.
+		if ( is_link( $path ) ) {
+			@unlink( $path );
+		} elseif ( is_dir( $path ) ) {
+			rwbe_uninstall_rmdir( $path );
+		} else {
+			@unlink( $path );
+		}
+	}
 
-    @rmdir($dir);
+	@rmdir( $dir );
 }
 
 // Every site on a network keeps its own options, table and files.
-if (is_multisite()) {
-    $sites = get_sites(array('fields' => 'ids', 'number' => 0));
-    foreach ($sites as $site_id) {
-        switch_to_blog($site_id);
-        rwbe_uninstall_current_site();
-        restore_current_blog();
-    }
+if ( is_multisite() ) {
+	// Prefixed: these sit at file scope, so an unprefixed name would leak into the
+	// global namespace of whatever runs the uninstall.
+	$rwbe_sites = get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	);
+	foreach ( $rwbe_sites as $rwbe_site_id ) {
+		switch_to_blog( $rwbe_site_id );
+		rwbe_uninstall_current_site();
+		restore_current_blog();
+	}
 } else {
-    rwbe_uninstall_current_site();
+	rwbe_uninstall_current_site();
 }
