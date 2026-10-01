@@ -44,6 +44,13 @@ class RWBE_Vehicle_Map {
     /** Transient guarding against concurrent/looping rebuilds */
     const LOCK = 'rwbe_vehicle_map_building';
 
+    /**
+     * Per-request memo for get_urls().
+     *
+     * @var array|null
+     */
+    private static $urls_memo = null;
+
     /** Taxonomies the map is built from */
     const TAX_MAKE  = 'pa_make';
     const TAX_MODEL = 'pa_model';
@@ -88,21 +95,32 @@ class RWBE_Vehicle_Map {
      * }
      */
     public static function get_urls() {
+        // Memoised: the shortcode, the widget and the block can all ask for this in
+        // one request, and each answer costs an option read plus two file_exists().
+        // rebuild() clears it, since it is what makes the answer change.
+        $urls = &self::$urls_memo;
+        if ($urls !== null) {
+            return $urls;
+        }
+
         $path = self::dir_path();
         $url  = self::dir_url();
         $ver  = (int) get_option(self::OPT_VERSION, 0);
 
         if ($path === '' || $url === '') {
-            return array('models' => '', 'years' => '', 'version' => 0);
+            $urls = array('models' => '', 'years' => '', 'version' => 0);
+            return $urls;
         }
 
         $suffix = $ver > 0 ? '?v=' . $ver : '';
 
-        return array(
+        $urls = array(
             'models'  => file_exists($path . self::FILE_MODELS) ? $url . self::FILE_MODELS . $suffix : '',
             'years'   => file_exists($path . self::FILE_YEARS) ? $url . self::FILE_YEARS . $suffix : '',
             'version' => $ver,
         );
+
+        return $urls;
     }
 
     /**
@@ -197,6 +215,8 @@ class RWBE_Vehicle_Map {
             if ($ok) {
                 update_option(self::OPT_VERSION, time(), false);
                 update_option(self::OPT_SOURCE, $source, false);
+                // The files and the version just changed, so any memoised URLs are stale.
+                self::$urls_memo = null;
                 self::log('Vehicle map rebuilt', array(
                     'source' => $source,
                     'makes' => count($models),

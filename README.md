@@ -4,7 +4,7 @@
 
 **Sincroniza o catálogo da Race Winning Brands Europe com o WooCommerce — e dá à loja uma pesquisa de peças por veículo que devolve resultados que existem mesmo.**
 
-[![Versão](https://img.shields.io/badge/versão-1.2.3-0b7285.svg)](CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-1.2.4-0b7285.svg)](CHANGELOG.md)
 [![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-21759b.svg)](https://wordpress.org/)
 [![WooCommerce](https://img.shields.io/badge/WooCommerce-3.0%20→%2011.0-96588a.svg)](https://woocommerce.com/)
 [![PHP](https://img.shields.io/badge/PHP-7.4%20→%208.3-777bb4.svg)](https://www.php.net/)
@@ -76,7 +76,7 @@ Este plugin trata das duas coisas: importação resiliente com retoma automátic
 | **Testar conexão API** | Valida a ligação e mostra produtos de amostra |
 | **Debug log** | Ver e limpar o registo rotativo |
 | **Importação em Tempo Real** | Painel ao vivo (3 s): ritmo em produtos/min, progresso, atividade atual e detalhe por produto |
-| **Limpeza de placeholders** | Elimina cópias duplicadas da imagem genérica, em lotes, no servidor |
+| **Limpeza de placeholders** | Elimina cópias duplicadas da imagem genérica, em lotes, no servidor. Os candidatos são pré-filtrados pelo tamanho que o WordPress guarda em `_wp_attachment_metadata`; o hash do ficheiro continua a decidir, e nada é eliminado antes de os produtos estarem reapontados para a cópia partilhada |
 | **Barra de Pesquisa** | Shortcode, estado dos dados, reconstruir mapa, preencher combinações a partir da API |
 
 ---
@@ -212,7 +212,9 @@ Produtos sem aplicações (peças universais) ficam marcados com `_rwbe_fitment_
 
 ### Filtro da loja
 
-Com a tabela pronta, `rwbe_make` + `rwbe_model` (+ `rwbe_year`) filtram pela combinação exata, através de `post__in` a partir da tabela, em vez de três cláusulas `tax_query` independentes. Só entra quando há modelo ou ano: uma marca sozinha não tem emparelhamento para errar, e a cláusula de taxonomia é mais barata que um `post__in` com milhares de ids. Se a lista exceder `rwbe_fitment_filter_max_ids` (20000), volta ao caminho antigo — nunca esconde produtos por truncatura.
+Com a tabela pronta, `rwbe_make` + `rwbe_model` (+ `rwbe_year`) filtram pela combinação exata, em vez de três cláusulas `tax_query` independentes. A tabela é ligada à query da loja por `INNER JOIN` (com `DISTINCT`, porque um produto tem uma linha por aplicação), através do filtro `posts_clauses` e apenas na query marcada — qualquer `post__in` que outro plugin já tenha definido mantém-se, e o JOIN apenas restringe por cima. Só entra quando há modelo ou ano: uma marca sozinha não tem emparelhamento para errar.
+
+Até à versão 1.2.3 o filtro resolvia primeiro a lista de ids e passava-a em `post__in`, o que colocava um `IN()` de até 20 000 inteiros na query principal e obrigava a um limite (`rwbe_fitment_filter_max_ids`) acima do qual desistia e voltava ao caminho por taxonomia — alargando silenciosamente os resultados precisamente nas marcas com mais produtos. O JOIN não tem esse teto, pelo que o filtro por combinação exata aplica-se sempre e o filtro `rwbe_fitment_filter_max_ids` deixou de existir.
 
 ---
 
@@ -357,6 +359,7 @@ Registo completo em [CHANGELOG.md](CHANGELOG.md).
 
 | Versão | Data | Destaque |
 |---|---|---|
+| **1.2.4** | 2026-10-01 | Desempenho: stock do cron em paralelo, catálogo já não é regravado sem motivo, filtro da loja por JOIN; limpeza de placeholders deixa de poder partir referências |
 | **1.2.3** | 2026-09-09 | Segurança: token da API deixou de existir em código — é introduzido manualmente |
 | **1.2.2** | 2026-09-08 | Limpeza de placeholders corre no servidor e sobrevive ao fecho da página |
 | **1.2.0** | 2026-09-04 | Tabela `wp_rwbe_fitment` com as combinações reais de veículo |

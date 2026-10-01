@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RWBE Product Importer
  * Description: Imports products from Race Winning Brands Europe (RWBE) API to WooCommerce.
- * Version: 1.2.3
+ * Version: 1.2.4
  * Author: António Lopes
  * Author URI: https://www.antoniolopes.io
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('WPINC')) {
 
 // Define plugin constants (guarded to avoid collisions and allow overrides)
 if (!defined('RWBE_PRODUCT_IMPORTER_VERSION')) {
-    define('RWBE_PRODUCT_IMPORTER_VERSION', '1.2.3');
+    define('RWBE_PRODUCT_IMPORTER_VERSION', '1.2.4');
 }
 if (!defined('RWBE_PRODUCT_IMPORTER_PLUGIN_DIR')) {
     define('RWBE_PRODUCT_IMPORTER_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -99,9 +99,15 @@ function rwbe_has_api_token() {
  * on every WordPress request (including the storefront). This flips them to
  * autoload='no' once. update_option() only changes autoload when explicitly told,
  * so this stays fixed for existing rows.
+ *
+ * Why there is a v2: the v1 pass ran once, but the import loop then deleted and
+ * re-created 'rwbe_import_progress' with update_option() *without* the autoload
+ * argument, so the row came back autoloaded — a multi-kilobyte blob in alloptions
+ * on every storefront request, rewritten every ten products during an import. The
+ * call sites now pass autoload=false; this pass repairs rows written before that.
  */
 function rwbe_maybe_fix_option_autoload() {
-    if (get_option('rwbe_autoload_fixed_v1')) {
+    if (get_option('rwbe_autoload_fixed_v2')) {
         return;
     }
 
@@ -109,18 +115,28 @@ function rwbe_maybe_fix_option_autoload() {
     $keys = array(
         'rwbe_recent_product_logs',
         'rwbe_import_progress',
+        'rwbe_import_started_at',
+        'rwbe_fitment_backfill_state',
         'rwbe_last_import_time',
         'rwbe_last_cron_import_time',
         'rwbe_last_full_sync_time',
     );
     foreach ($keys as $key) {
+        // 'no' is excluded from the autoload set on every supported WordPress
+        // version (which is not true of the newer 'off' on WP < 6.6).
         $wpdb->update($wpdb->options, array('autoload' => 'no'), array('option_name' => $key));
     }
 
     wp_cache_delete('alloptions', 'options');
-    update_option('rwbe_autoload_fixed_v1', 1, false);
+
+    // This flag stays autoloaded on purpose: it is a single byte, and the guard
+    // above then costs nothing instead of a DB read on every admin request.
+    update_option('rwbe_autoload_fixed_v2', 1);
 }
 add_action('admin_init', 'rwbe_maybe_fix_option_autoload');
+// Also run from the import cron: on a site where nobody opens wp-admin, the
+// repair would otherwise never happen.
+add_action('rwbe_product_import_cron', 'rwbe_maybe_fix_option_autoload', 1);
 
 // Check if WooCommerce is active
 function rwbe_check_woocommerce_active() {

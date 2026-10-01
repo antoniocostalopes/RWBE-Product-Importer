@@ -22,6 +22,48 @@ Detalhe de utilização e configuração: [README.md](README.md).
 
 ---
 
+## [1.2.4] — 2026-10-01
+
+Apenas desempenho. Nenhuma alteração ao que é importado, ao que é mostrado, nem às taxonomias.
+
+### Corrigido — custo no frontend
+
+- **`rwbe_import_progress` voltava a ficar `autoload = yes`.** O ciclo de importação apagava e recriava a opção com `update_option()` sem o argumento de autoload, pelo que um blob de vários KB (resultados + mensagens de erro) era carregado em **todos** os pedidos do site, incluindo a loja — e reescrito a cada 10 produtos durante uma importação, invalidando a cache `alloptions` de cada vez. Todas as 11 chamadas passam `false`, e uma nova migração (`rwbe_autoload_fixed_v2`, também ligada ao cron da importação) repara as linhas já existentes.
+- **O logger tocava no disco em cada pedido.** `RWBE_Debug_Logger::init()` corria `wp_upload_dir()` e dois `file_exists()` em cada carregamento de página, mesmo com o log desligado. Passou a resolver o caminho só na primeira escrita real.
+- **O mapa de veículos era consultado em páginas que não o usam.** O shortcode e o widget montavam os dados localizados — um nonce e `RWBE_Vehicle_Map::get_urls()`, ou seja uma leitura de opção não-autoloaded e dois `file_exists()` — em cada pedido do frontend. Agora só quando os assets são efetivamente carregados, e `get_urls()` ficou memoizado por pedido.
+- **`RWBE_Fitment::is_ready()` corria `SHOW TABLES` a cada chamada.** Memoizado por pedido (invalidado por `install()` e `flush_coverage_cache()`).
+
+### Corrigido — custo da importação
+
+- **Um pedido HTTP por produto no cron.** `update_product_stock_price()` chamava `/stock` produto a produto, em série, com timeout de 45 s: ~35 000 idas e voltas numa sincronização completa. O stock de cada lote passa a ser obtido em paralelo (`prefetch_stock()`, pelo mesmo cliente `Requests` já usado nos detalhes); produtos cujo pedido falhe ficam fora da cache e são repetidos individualmente, exatamente como antes.
+- **O catálogo inteiro era regravado em cada corrida.** O cron fazia `$product->save()` + `wc_delete_product_transients()` + `clean_post_cache()` para todos os produtos, mesmo sem nada ter mudado. Agora só quando algo muda de facto — incluindo a correção de uma edição manual feita no wp-admin, que conta como alteração. A deteção usa `update_meta_if_changed()`, porque `update_post_meta()` compara estritamente contra a string devolvida pela base de dados e `"5" === 5` é falso: com ints e floats (stock e preços) **todos** os produtos pareciam alterados.
+- **Escrita no log por linha.** Cada `RWBE_Debug_Logger::log()` fazia `clearstatcache()` + `filesize()` + um `file_put_contents()` com `FILE_APPEND`. As entradas passam a ser acumuladas e escritas em bloco (64 KB ou 200 entradas), com descarga garantida no fim do pedido mesmo em erro fatal. O que é registado não mudou.
+- **Uma leitura e uma escrita de opção por produto no log em tempo real.** `add_product_log()` lia e regravava uma opção de até 100 entradas a cada produto. Passa a ler uma vez por pedido e a gravar no máximo a cada 2 s — o painel atualiza a cada 3 s, pelo que continua igualmente atual.
+- **Contagem de termos a cada atribuição.** As duas rotinas de importação correm agora dentro de `wp_defer_term_counting()`, com as contagens recalculadas uma vez no fim.
+- **`_nocache` único por chamada.** Cada um dos ~70 000 pedidos de uma importação tinha um URL irrepetível, tornando todas as respostas incacheáveis ao longo do caminho. O token passou a ser único por pedido PHP (continua a garantir dados frescos em cada corrida) e a intenção é transmitida como deve ser, pelo cabeçalho `Cache-Control: no-cache`.
+- **Watchdog ruidoso.** `rwbe_check_interrupted_imports` corre a cada 2 minutos e registava entradas à entrada e à saída mesmo sem nada para fazer (~2800 por dia), o que obrigava o log a rodar e empurrava para fora o diagnóstico útil. Só decisões reais são registadas.
+
+### Corrigido — limpeza de imagens placeholder duplicadas
+
+Medido no catálogo real: 195 179 anexos, dos quais **73 218 são cópias do placeholder** à espera de eliminação.
+
+- **Produtos podiam ficar a apontar para anexos já eliminados.** `reassign_attachment_references()` não devolvia nada e ignorava o resultado de `$wpdb`: se o `SELECT`/`UPDATE` do `_thumbnail_id` ou o `REGEXP` das galerias falhasse (p. ex. `regexp_time_limit`, que está no valor por omissão de 32), a função devolvia "nada encontrado" e o lote **eliminava os anexos de qualquer forma**, deixando `_thumbnail_id` e `_product_image_gallery` a referenciar IDs inexistentes. Agora devolve `bool`, o lote aborta sem eliminar nada e o cursor não avança — ficar com duplicados é recuperável, referências partidas não são.
+- **Um erro fatal dentro de `wp_delete_attachment()` bloqueava a limpeza para sempre.** O `catch` só apanhava `Exception`, mas um hook `delete_post` de terceiros lança `\Error`. Escapava: o lock ficava retido, o progresso não era gravado e o watchdog voltava a agendar exatamente o mesmo lote em ciclo. Passou a `\Throwable` com `finally` para libertar o lock e gravar o estado.
+- **A varredura passava por todos os anexos em vez de só pelos candidatos.** O WordPress guarda o tamanho do ficheiro em `_wp_attachment_metadata`, pelo que o tamanho conhecido do placeholder (11 137 bytes) pré-filtra em SQL: **185 281 anexos a varrer passam a 73 218** (618 lotes para 245). Os outros 112 mil eram abertos e hasheados do disco sem necessidade. O `md5_file()` continua a ser quem decide — o pré-filtro só pode deixar um duplicado para trás (apanhado numa passagem seguinte), nunca eliminar a imagem errada; anexos sem metadados, ou sem o tamanho registado, permanecem candidatos.
+- **Sem caches primadas.** A janela chega como IDs em SQL cru, pelo que `get_attached_file()` e `wp_delete_attachment()` disparavam cada um a sua consulta: ~185 mil consultas por passagem. Um `_prime_post_caches()` por lote resolve em duas.
+- **A contagem do que falta corria em cada lote.** Medida em ~1,7 s (varre o conjunto de candidatos todo) e serve apenas para a barra de progresso. Passa a ser feita uma vez por passagem; o resto é derivado de `total - scanned`.
+
+Em conjunto, o custo em SQL de uma passagem completa desce de ~14,6 min para ~2,8 min. As 73 mil chamadas a `wp_delete_attachment()` mantêm-se — é trabalho real.
+
+### Alterado
+
+- **Filtro da loja por JOIN em vez de `post__in`.** `rwbe_make` + `rwbe_model` (+ `rwbe_year`) ligam a tabela de fitment à query por `INNER JOIN` + `DISTINCT` (via `posts_clauses`, só na query marcada), em vez de resolver até 20 000 ids e passá-los em `post__in`. Como consequência **o filtro `rwbe_fitment_filter_max_ids` deixou de existir**: já não há truncatura, pelo que o caminho da combinação exata nunca volta a cair na taxonomia — antes alargava silenciosamente os resultados precisamente nas marcas com mais produtos.
+- **`RWBE_Fitment::get_model_map()` e `get_year_map()` aceitam filtros.** Os menus pediam o mapa completo (varrimento da tabela inteira mais expansão de todos os intervalos de anos em PHP) para depois usar uma única chave. O construtor do mapa JSON estático continua a chamá-los sem argumentos.
+- **Estatísticas do painel em cache por 2 minutos.** Os quatro `COUNT` sobre `wp_postmeta` corriam sem cache em cada carregamento das páginas do plugin. O progresso em tempo real continua a ser lido na página de importação.
+- **`_rwbe_status_updated_at`** passa a ser gravado só quando a sincronização altera algo, em vez de em cada produto em cada corrida. Nada lê este valor; é apenas diagnóstico.
+
+---
+
 ## [1.2.3] — 2026-09-09
 
 ### Segurança

@@ -124,8 +124,7 @@ class RWBE_Vehicle_Filter {
      */
     public static function render_form($opts = array()) {
         // Ensure front assets load wherever the form appears.
-        wp_enqueue_style('rwbe-vehicle-filter');
-        wp_enqueue_script('rwbe-vehicle-filter');
+        self::enqueue_assets();
 
         // Build the static map in the background if it is not there yet.
         if (class_exists('RWBE_Vehicle_Map')) {
@@ -235,28 +234,48 @@ class RWBE_Vehicle_Filter {
             RWBE_PRODUCT_IMPORTER_VERSION,
             true
         );
-        // Shared static map (same files the [rwbe_ymm_search] shortcode uses). The
-        // AJAX endpoint below stays as the fallback when the files are missing.
-        $map = class_exists('RWBE_Vehicle_Map') ? RWBE_Vehicle_Map::get_urls() : array('models' => '', 'years' => '');
-
-        wp_localize_script('rwbe-vehicle-filter', 'rwbeVF', array(
-            'ajaxUrl'   => admin_url('admin-ajax.php'),
-            'nonce'     => wp_create_nonce('rwbe_vf_nonce'),
-            'modelsUrl' => $map['models'],
-            'i18n'    => array(
-                'selectModel' => __('Selecione o modelo', 'rwbe-product-importer'),
-                'loading'     => __('A carregar…', 'rwbe-product-importer'),
-                'noModels'    => __('Sem modelos disponíveis', 'rwbe-product-importer'),
-            ),
-        ));
-
         // Enqueue when the widget is active in any sidebar, or on the shop/catalog
         // pages (where a themed sidebar might render it via a block area).
         $on_shop = function_exists('is_shop') && (is_shop() || (function_exists('is_product_taxonomy') && is_product_taxonomy()));
         if (is_active_widget(false, false, self::WIDGET_BASE) || $on_shop) {
-            wp_enqueue_style('rwbe-vehicle-filter');
-            wp_enqueue_script('rwbe-vehicle-filter');
+            self::enqueue_assets();
         }
+    }
+
+    /**
+     * Enqueue the filter assets, localising them on the way.
+     *
+     * Built once, and only when the script is actually going out. Previously the
+     * localised data — a nonce plus RWBE_Vehicle_Map::get_urls(), i.e. an option read
+     * and two file_exists() — was assembled on every front-end request, including the
+     * pages that never show the filter.
+     */
+    private static function enqueue_assets() {
+        static $localized = false;
+
+        if (!$localized) {
+            $localized = true;
+
+            // Shared static map (same files the [rwbe_ymm_search] shortcode uses). The
+            // AJAX endpoint stays as the fallback when the files are missing.
+            $map = class_exists('RWBE_Vehicle_Map')
+                ? RWBE_Vehicle_Map::get_urls()
+                : array('models' => '', 'years' => '');
+
+            wp_localize_script('rwbe-vehicle-filter', 'rwbeVF', array(
+                'ajaxUrl'   => admin_url('admin-ajax.php'),
+                'nonce'     => wp_create_nonce('rwbe_vf_nonce'),
+                'modelsUrl' => $map['models'],
+                'i18n'    => array(
+                    'selectModel' => __('Selecione o modelo', 'rwbe-product-importer'),
+                    'loading'     => __('A carregar…', 'rwbe-product-importer'),
+                    'noModels'    => __('Sem modelos disponíveis', 'rwbe-product-importer'),
+                ),
+            ));
+        }
+
+        wp_enqueue_style('rwbe-vehicle-filter');
+        wp_enqueue_script('rwbe-vehicle-filter');
     }
 
     /**
@@ -288,7 +307,7 @@ class RWBE_Vehicle_Filter {
         // Prefer the fitment table (correct make→model pairing) when it is populated.
         $models = null;
         if (class_exists('RWBE_Fitment') && RWBE_Fitment::is_ready()) {
-            $map = RWBE_Fitment::get_model_map();
+            $map = RWBE_Fitment::get_model_map($make_slug);
             $models = isset($map[$make_slug]) ? $map[$make_slug] : array();
         }
         if ($models === null) {
