@@ -24,7 +24,7 @@ Detalhe de utilização e configuração: [README.md](README.md).
 
 ## [1.2.4] — 2026-10-01
 
-Apenas desempenho. Nenhuma alteração ao que é importado, ao que é mostrado, nem às taxonomias.
+Desempenho, mais duas correções de correção na limpeza de imagens placeholder (uma delas podia fazer produtos perderem a imagem). Nenhuma alteração ao que é importado, ao que é mostrado, nem às taxonomias.
 
 ### Corrigido — custo no frontend
 
@@ -47,7 +47,7 @@ Apenas desempenho. Nenhuma alteração ao que é importado, ao que é mostrado, 
 
 Medido no catálogo real: 195 179 anexos, dos quais **73 218 são cópias do placeholder** à espera de eliminação.
 
-- **Produtos podiam ficar a apontar para anexos já eliminados.** `reassign_attachment_references()` não devolvia nada e ignorava o resultado de `$wpdb`: se o `SELECT`/`UPDATE` do `_thumbnail_id` ou o `REGEXP` das galerias falhasse (p. ex. `regexp_time_limit`, que está no valor por omissão de 32), a função devolvia "nada encontrado" e o lote **eliminava os anexos de qualquer forma**, deixando `_thumbnail_id` e `_product_image_gallery` a referenciar IDs inexistentes. Agora devolve `bool`, o lote aborta sem eliminar nada e o cursor não avança — ficar com duplicados é recuperável, referências partidas não são.
+- **Produtos podiam perder a imagem.** `reassign_attachment_references()` não devolvia nada e ignorava o resultado de `$wpdb`: se o `SELECT`/`UPDATE` do `_thumbnail_id` ou o `REGEXP` das galerias falhasse (p. ex. `regexp_time_limit`, que está no valor por omissão de 32), a função devolvia "nada encontrado" e o lote **eliminava os anexos de qualquer forma**. Sem o reaponto, as duas consequências são diferentes: o `wp_delete_attachment()` do WordPress apaga as linhas `_thumbnail_id` que apontem para o anexo, pelo que o produto fica **sem imagem destacada**; já o `_product_image_gallery` é meta do WooCommerce que o core não toca, pelo que **o ID morto fica na lista** e a galeria renderiza um buraco. Agora devolve `bool`, o lote aborta sem eliminar nada e o cursor não avança — ficar com duplicados é recuperável, perder imagens não é.
 - **Um erro fatal dentro de `wp_delete_attachment()` bloqueava a limpeza para sempre.** O `catch` só apanhava `Exception`, mas um hook `delete_post` de terceiros lança `\Error`. Escapava: o lock ficava retido, o progresso não era gravado e o watchdog voltava a agendar exatamente o mesmo lote em ciclo. Passou a `\Throwable` com `finally` para libertar o lock e gravar o estado.
 - **A varredura passava por todos os anexos em vez de só pelos candidatos.** O WordPress guarda o tamanho do ficheiro em `_wp_attachment_metadata`, pelo que o tamanho conhecido do placeholder (11 137 bytes) pré-filtra em SQL: **185 281 anexos a varrer passam a 73 218** (618 lotes para 245). Os outros 112 mil eram abertos e hasheados do disco sem necessidade. O `md5_file()` continua a ser quem decide — o pré-filtro só pode deixar um duplicado para trás (apanhado numa passagem seguinte), nunca eliminar a imagem errada; anexos sem metadados, ou sem o tamanho registado, permanecem candidatos.
 - **Sem caches primadas.** A janela chega como IDs em SQL cru, pelo que `get_attached_file()` e `wp_delete_attachment()` disparavam cada um a sua consulta: ~185 mil consultas por passagem. Um `_prime_post_caches()` por lote resolve em duas.

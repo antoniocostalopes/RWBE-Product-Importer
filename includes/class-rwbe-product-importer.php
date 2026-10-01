@@ -313,12 +313,15 @@ class RWBE_Product_Importer {
 
         $deleted = 0;
         if (!empty($duplicates)) {
-            // Deleting before knowing the repoint worked is how products end up with
-            // a _thumbnail_id or a gallery entry pointing at an attachment that no
-            // longer exists. The repoint now reports failure (a REGEXP that MySQL
+            // Deleting before knowing the repoint worked is how products lose their
+            // image. The two consequences differ: wp_delete_attachment() deletes every
+            // _thumbnail_id row pointing at the attachment, so the product ends up with
+            // no featured image at all, while _product_image_gallery is a WooCommerce
+            // meta core never touches, so the dead ID stays in the list and the gallery
+            // renders a gap. The repoint now reports failure (a REGEXP that MySQL
             // refuses under regexp_time_limit, a lost connection mid-UPDATE) and the
             // batch stops with the duplicates still on disk, which is recoverable;
-            // broken references are not.
+            // lost images are not.
             if (!$this->reassign_attachment_references($duplicates, $canonical)) {
                 RWBE_Debug_Logger::log('Aborting placeholder cleanup batch: repoint failed, nothing deleted', [
                     'duplicates' => count($duplicates),
