@@ -5008,6 +5008,15 @@ class RWBE_Product_Importer {
 			return;
 		}
 
+		// Nothing to resume into without a credential. Checked here as well as in
+		// import_products_with_resilience() so the watchdog does not even spin up the
+		// importer, and the stale progress is cleared rather than retried for ever.
+		if ( ! rwbe_has_api_token() ) {
+			RWBE_Debug_Logger::log( 'Interrupted import not resumed: no API token configured' );
+			delete_option( 'rwbe_import_progress' );
+			return;
+		}
+
 		$last_timestamp = isset( $progress['timestamp'] ) ? intval( $progress['timestamp'] ) : 0;
 		$current_time   = time();
 		$time_diff      = $current_time - $last_timestamp;
@@ -5306,6 +5315,33 @@ class RWBE_Product_Importer {
 	 * @return array Import results
 	 */
 	public function import_products_with_resilience( $is_cron = false, $resume = true ) {
+		// No credential, no run. import_products() has always checked this first; this
+		// path — the one the cron and the watchdog actually use — did not, and the
+		// difference mattered: run_import_with_resilience() writes the progress option
+		// as 'in_progress' before it ever calls the API, so on a site with no token the
+		// watchdog resurrected the same doomed import every two minutes, each attempt
+		// refreshing the timestamp. That also silently blocked the placeholder cleanup,
+		// which stands down whenever an import looks active, so it could never start.
+		if ( ! rwbe_has_api_token() ) {
+			$msg = __( 'Nenhum API Token configurado. Introduza o token nas Configurações do plugin antes de importar.', 'rwbe-product-importer' );
+			RWBE_Debug_Logger::log( 'Resilient import aborted: no API token configured' );
+
+			// Clear the progress so the watchdog stops trying to resume a run that
+			// cannot succeed, instead of looping on it for ever.
+			delete_option( 'rwbe_import_progress' );
+
+			return array(
+				'total'          => 0,
+				'created'        => 0,
+				'updated'        => 0,
+				'skipped'        => 0,
+				'errors'         => 1,
+				'error_messages' => array( $msg ),
+				'completed'      => false,
+				'missing_token'  => true,
+			);
+		}
+
 		// Same concurrency guard as import_products(): this resilient loop is the
 		// path the cron and the interrupted-import watchdog actually use, so it is
 		// where overlapping runs would otherwise race and duplicate products.
