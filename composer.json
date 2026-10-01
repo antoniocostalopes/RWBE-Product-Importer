@@ -1,0 +1,46 @@
+{
+    "name": "antoniocostalopes/rwbe-product-importer",
+    "description": "Imports products from the Race Winning Brands Europe (RWBE) API into WooCommerce.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "António Lopes",
+            "homepage": "https://www.antoniolopes.io"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.11",
+        "wp-coding-standards/wpcs": "^3.1",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "@php bin/lint.php",
+        "cs": "phpcs",
+        "cs:fix": "phpcbf",
+        "test": "phpunit",
+        "check": [
+            "@lint",
+            "@cs",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "lint": "php -l over every PHP file in the plugin.",
+        "cs": "Report WordPress Coding Standards violations.",
+        "cs:fix": "Auto-fix the mechanically fixable violations.",
+        "test": "Run the unit tests (no WordPress install needed).",
+        "check": "lint + cs + test, the same set CI runs."
+    }
+}

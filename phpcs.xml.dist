@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<ruleset name="RWBE Product Importer">
+    <description>WordPress Coding Standards plus a PHP 7.4+ compatibility check.</description>
+
+    <!-- What to scan. -->
+    <file>.</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/languages/*</exclude-pattern>
+    <exclude-pattern>*/assets/*</exclude-pattern>
+
+    <!-- Show sniff names and progress; -p and -s are what you want on every run. -->
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg name="cache" value=".phpcs-cache"/>
+    <arg value="ps"/>
+
+    <!-- Run in parallel when the machine allows it. -->
+    <arg name="parallel" value="8"/>
+
+    <rule ref="WordPress">
+        <!--
+            The plugin is indented with four spaces throughout, roughly 11k lines of it.
+            Converting to tabs would touch every line of every file and bury real review
+            signal under whitespace, so the indentation character is the one WordPress
+            rule this project does not follow. Everything else about indentation — depth,
+            alignment, consistency — is still enforced.
+        -->
+        <exclude name="Generic.WhiteSpace.DisallowSpaceIndent"/>
+        <exclude name="Universal.WhiteSpace.PrecisionAlignment"/>
+
+        <!--
+            Short array syntax is used in parts of the codebase and long syntax in
+            others. Neither is a defect; forcing one would be a mechanical rewrite with
+            no behavioural effect.
+        -->
+        <exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+
+        <!--
+            Yoda conditions prevent assignment-in-comparison typos. This codebase does
+            not use them and rewriting every comparison is churn, not an improvement.
+        -->
+        <exclude name="WordPress.PHP.YodaConditions.NotYoda"/>
+
+        <!--
+            The file naming convention (class-*.php, lowercase, hyphens) is already
+            followed by includes/; the root plugin file and the diagnostic scripts in
+            tools/ are named for what they are.
+        -->
+        <exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+    </rule>
+
+    <!--
+        The importer talks to wp_postmeta, wp_posts and its own table directly, by
+        design: the queries it replaces were orders of magnitude slower through the
+        WordPress APIs. Table names are interpolated from $wpdb properties and every
+        value goes through prepare(), so the sniffs that assume any direct query is a
+        mistake are noise here.
+    -->
+    <rule ref="WordPress.DB.DirectDatabaseQuery">
+        <exclude-pattern>*/includes/*</exclude-pattern>
+        <exclude-pattern>*/uninstall.php</exclude-pattern>
+        <exclude-pattern>*/rwbe-product-importer.php</exclude-pattern>
+    </rule>
+
+    <!--
+        Caching a query result is a per-call decision this codebase makes explicitly
+        (transients, per-request memos, the static vehicle map). The blanket sniff
+        cannot see any of that.
+    -->
+    <rule ref="WordPress.DB.SlowDBQuery">
+        <exclude-pattern>*/includes/*</exclude-pattern>
+    </rule>
+
+    <!--
+        The diagnostic scripts in tools/ are command-line only (they refuse any other
+        SAPI) and print plain text or a standalone HTML report. Escaping, i18n and
+        WordPress global conventions do not apply to them.
+    -->
+    <rule ref="WordPress.Security.EscapeOutput">
+        <exclude-pattern>*/tools/*</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.WP.AlternativeFunctions">
+        <exclude-pattern>*/tools/*</exclude-pattern>
+    </rule>
+    <rule ref="WordPress.WP.GlobalVariablesOverride">
+        <exclude-pattern>*/tools/*</exclude-pattern>
+    </rule>
+
+    <!-- The tests stub WordPress functions on purpose. -->
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+        <exclude-pattern>*/tools/*</exclude-pattern>
+    </rule>
+
+    <!-- Minimum supported PHP, matching the plugin header and composer.json. -->
+    <config name="testVersion" value="7.4-"/>
+    <rule ref="PHPCompatibilityWP"/>
+
+    <!-- Minimum supported WordPress, matching "Requires at least" in the header. -->
+    <config name="minimum_wp_version" value="5.0"/>
+
+    <!-- The one text domain this plugin uses. -->
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="rwbe-product-importer"/>
+            </property>
+        </properties>
+    </rule>
+
+    <!-- Prefixes the plugin owns, for the global-namespace sniffs. -->
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <properties>
+            <property name="prefixes" type="array">
+                <element value="rwbe"/>
+                <element value="RWBE"/>
+            </property>
+        </properties>
+    </rule>
+</ruleset>

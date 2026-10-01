@@ -15,7 +15,6 @@ vendor/
 .vscode/
 *.sublime-*
 vendor/
-composer.lock
 .phpcs-cache
 .phpunit.result.cache
 .phpunit.cache/
