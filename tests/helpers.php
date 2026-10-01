@@ -15,42 +15,27 @@ if ( ! defined( 'RWBE_TEST_PLUGIN_DIR' ) ) {
 }
 
 /**
- * Path to a file whose bytes are the RWB placeholder image, or '' when unavailable.
+ * Path to the real RWB placeholder image, when this machine happens to have it.
  *
- * One assertion group needs is_placeholder_attachment() to genuinely return true, and
- * that means a file with the exact size and md5 the plugin hard-codes — bytes that
- * cannot be fabricated. It is looked for as a committed fixture first, then in this
- * site's uploads. When neither is there the suite skips that group and says so,
- * rather than quietly asserting nothing; the assertions that do not need the file
- * still run.
+ * No suite depends on it any more: the detection is driven by two filterable values
+ * (rwbe_placeholder_md5 / rwbe_placeholder_size), so the delete-path tests point them
+ * at a fixture they generate and run everywhere, CI included. The supplier's
+ * placeholder is their logo, not a generic "no image" box, so it is deliberately not
+ * committed here.
  *
- * To enable the full group in CI, copy the placeholder PNG to
- * tests/fixtures/placeholder.png.
+ * What it is still used for: when the file is present, the suite cross-checks that the
+ * constants the plugin ships still describe it — the regression that would silently
+ * stop every future placeholder from being de-duplicated.
  *
  * @return string Absolute path, or '' when not available.
  */
 function rwbe_test_placeholder_file() {
-	// Lets the "fixture missing" path be exercised on a machine that has the file.
-	// Without it, that branch only ever ran in CI — which is how a call to a
-	// non-existent PHPUnit method shipped green from a developer's machine.
+	// Lets the "image not on this machine" branch be exercised where it is.
 	if ( getenv( 'RWBE_TEST_NO_PLACEHOLDER' ) ) {
 		return '';
 	}
 
-	$candidates = array(
-		__DIR__ . '/fixtures/placeholder.png',
-		// This development site, where the plugin has already imported it.
-		dirname( RWBE_TEST_PLUGIN_DIR, 2 ) . '/uploads/2026/06/1.png',
-	);
+	$path = dirname( RWBE_TEST_PLUGIN_DIR, 2 ) . '/uploads/2026/06/1.png';
 
-	foreach ( $candidates as $path ) {
-		if ( is_readable( $path )
-			&& filesize( $path ) === 11137
-			&& md5_file( $path ) === '05aefa99c9870be09a77d9dd68b4c55a'
-		) {
-			return $path;
-		}
-	}
-
-	return '';
+	return is_readable( $path ) ? $path : '';
 }

@@ -30,10 +30,21 @@ function delete_post_meta( $id, $key ) {
 	return true;
 }
 
+if ( ! isset( $GLOBALS['filters'] ) ) {
+	$GLOBALS['filters'] = [];
+}
+/**
+ * Stubbed filter dispatch. WordPress with nothing hooked returns the value it was
+ * given, and a stub that returns false instead silently changes what the code under
+ * test computes.
+ */
+function apply_filters( $hook, $value = null ) {
+	return $GLOBALS['filters'][ $hook ] ?? $value;
+}
+
 foreach ( [
 	'add_action',
 	'add_filter',
-	'apply_filters',
 	'get_option',
 	'update_option',
 	'delete_option',
